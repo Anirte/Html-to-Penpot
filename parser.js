@@ -442,11 +442,10 @@ window.addEventListener('message', event => {
     btn.textContent = 'Generate in Penpot';
     log(`✓ Created ${event.data.count} frames in Penpot!`);
     if (event.data.needsMarginFix) {
-      const cmd = `setTimeout(() => { document.querySelector('button:has(use[href="#icon-margin"])')?.click(); console.log('✓ Margin fix applied!'); }, 3000);`;
-      navigator.clipboard.writeText(cmd).catch(() => {});
       log(`⚠ ${event.data.marginCount} elements with margins selected.`);
-      log('→ Open F12 → Ctrl+V → Enter (command already copied)');
-      toast(`✓ ${event.data.count} frames! Open F12 and paste.`);
+      log('→ Click "Copy margin fix" then open F12 → Ctrl+V → Enter');
+      document.getElementById('marginFixBtn').style.display = 'block';
+      toast(`✓ ${event.data.count} frames created!`);
     } else {
       toast(`✓ ${event.data.count} frames created!`);
     }
@@ -458,6 +457,18 @@ window.addEventListener('message', event => {
     toast('Penpot error', '#e86060');
   }
 });
+
+// ── Copy margin fix command to clipboard
+function copyMarginCmd() {
+  const cmd = `setTimeout(() => { document.querySelector('button:has(use[href="#icon-margin"])')?.click(); console.log('✓ Margin fix applied!'); }, 3000);`;
+  navigator.clipboard.writeText(cmd).then(() => {
+    toast('Copied! Open F12 → Ctrl+V → Enter');
+    log('Command copied. Open F12 → Console → Ctrl+V → Enter');
+  }).catch(() => {
+    toast('Copy failed — see log for command', '#e86060');
+    log('Command: ' + cmd);
+  });
+}
 
 // ── Viewport presets
 const PRESETS = {
