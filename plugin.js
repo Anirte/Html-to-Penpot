@@ -53,15 +53,8 @@ penpot.ui.onMessage(async (message) => {
       totalCreated++;
     }
 
-    console.log('[margins] shapes with non-zero margin:', shapesWithMargin.length);
     if (shapesWithMargin.length > 0) {
-      console.log('[margins] first 3:', shapesWithMargin.slice(0,3).map(s => s?.name + ' id:' + s?.id));
-      try {
-        penpot.selection = shapesWithMargin;
-        console.log('[margins] selection set OK, count:', penpot.selection?.length);
-      } catch (e) {
-        console.warn('[selection] error:', e.message);
-      }
+      try { penpot.selection = shapesWithMargin; } catch (e) {}
     }
 
     penpot.ui.sendMessage({
@@ -244,12 +237,11 @@ function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlB
           shape.layoutChild.rightMargin  = mr;
           shape.layoutChild.bottomMargin = mb;
           shape.layoutChild.leftMargin   = ml;
-          // Track shapes with non-zero margins for bulk selection
+          // Apply flexGrow — makes element fill available space (like flex:1)
+          const fg = parseFloat(cn.styles.flexGrow) || 0;
+          if (fg > 0) shape.layoutChild.horizontalSizing = 'fill';
           if (mt !== 0 || mb !== 0 || ml !== 0 || mr !== 0) {
             shapesWithMargin.push(shape);
-            if (shapesWithMargin.length <= 3) {
-              console.log('[margin] tracked:', shape?.name, {mt, mb, ml, mr});
-            }
           }
         });
       } catch (e) {

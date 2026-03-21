@@ -119,7 +119,8 @@ const STYLE_PROPS = [
   'paddingTop','paddingRight','paddingBottom','paddingLeft',
   'boxShadow',
   'flexDirection','flexWrap','alignItems','justifyContent',
-  'gap','rowGap','columnGap',
+  'gap', 'rowGap', 'columnGap',
+  'flexGrow','flexShrink','flexBasis',
   'marginTop','marginBottom','marginLeft','marginRight',
 ];
 
@@ -128,7 +129,7 @@ function getOptions() {
     width:     parseInt(document.getElementById('optWidth').value)    || 1440,
     height:    parseInt(document.getElementById('optHeight').value)   || 900,
     minSize:   1,
-    maxDepth:  parseInt(document.getElementById('optMaxDepth').value) || 8,
+    maxDepth:  parseInt(document.getElementById('optMaxDepth').value) || 12,
     incText:   document.getElementById('chkText').classList.contains('on'),
     incHidden: document.getElementById('chkHidden').classList.contains('on'),
   };
@@ -257,6 +258,10 @@ function parseIframe(opts) {
           // (body, elements with 100vh height) — NOT on regular cards/components
           body.style.overflow = 'visible';
           body.style.height   = 'auto';
+
+          // Expand iframe to full content height so all elements are in viewport
+          const fullH = Math.max(doc.documentElement.scrollHeight, body.scrollHeight);
+          iframe.style.height = fullH + 'px';
           doc.querySelectorAll('*').forEach(el => {
             const cs = win.getComputedStyle(el);
             const h  = cs.height;
@@ -309,6 +314,18 @@ function parseIframe(opts) {
                 styles[p] = v;
               }
             });
+            // Remove flex props from non-flex elements — getComputedStyle
+            // returns flex defaults (e.g. flexDirection:row) even for block elements
+            const disp = computed.display;
+            if (disp !== 'flex' && disp !== 'inline-flex' && disp !== 'grid' && disp !== 'inline-grid') {
+              delete styles.flexDirection;
+              delete styles.flexWrap;
+              delete styles.alignItems;
+              delete styles.justifyContent;
+              delete styles.gap;
+              delete styles.rowGap;
+              delete styles.columnGap;
+            }
             // Always collect grid-specific props — needed for correct layout detection
             ['gridTemplateColumns','gridTemplateRows','gridAutoFlow'].forEach(p => {
               const v = computed[p];
