@@ -52,7 +52,7 @@ penpot.ui.onMessage(async (message) => {
       totalCreated++;
     }
 
-    penpot.ui.sendMessage({ type: 'DONE', count: totalCreated });
+    penpot.ui.sendMessage({ type: 'DONE', count: totalCreated, needsMarginFix: true });
   }
 
 });

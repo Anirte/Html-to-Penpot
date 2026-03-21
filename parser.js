@@ -360,6 +360,11 @@ window.addEventListener('message', event => {
     btn.disabled    = false;
     btn.textContent = 'Generate in Penpot';
     log(`✓ Created ${event.data.count} frames in Penpot!`);
+    if (event.data.needsMarginFix) {
+      log('⚠ Run the margin fix script in browser console (F12):');
+      log('Click "Copy margin fix" button below');
+      document.getElementById('marginFixBtn').style.display = 'block';
+    }
     toast(`✓ ${event.data.count} frames created!`);
   }
   if (event.data.type === 'ERROR') {
@@ -369,6 +374,37 @@ window.addEventListener('message', event => {
     toast('Penpot error', '#e86060');
   }
 });
+
+// ── Margin fix script — paste in browser console after generation
+function copyMarginFix() {
+  const script = `
+// Penpot margin-multiple fix — paste in browser console (F12)
+// Finds all "Margin - multiple" buttons and clicks them
+(function() {
+  let clicked = 0;
+  // Find by title/aria-label attribute
+  const byTitle = document.querySelectorAll('[title="Margin - multiple"], [aria-label="Margin - multiple"]');
+  byTitle.forEach(btn => { btn.click(); clicked++; });
+
+  // Fallback: find by tooltip text content
+  if (clicked === 0) {
+    document.querySelectorAll('button, span, div').forEach(el => {
+      if (el.title === 'Margin - multiple' || el.getAttribute('aria-label') === 'Margin - multiple') {
+        el.click(); clicked++;
+      }
+    });
+  }
+  console.log('Clicked ' + clicked + ' margin buttons');
+  if (clicked === 0) {
+    console.warn('No buttons found — select all elements first (Ctrl+A), then run again');
+  }
+})();
+`.trim();
+  navigator.clipboard.writeText(script).then(() => {
+    toast('Script copied! Paste in browser console (F12)');
+    log('Script copied to clipboard. Open F12 → Console → paste → Enter');
+  });
+}
 
 // ── Init
 (function init() {

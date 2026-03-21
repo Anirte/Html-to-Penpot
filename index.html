@@ -204,9 +204,15 @@ If your HTML already has &lt;style&gt; tags inside, you don't need this tab."></
 
 </div>
 
-<div class="ftr">
-  <button class="btn" onclick="previewParse()">Preview</button>
-  <button class="btn pri" id="genBtn" onclick="generate()">Generate in Penpot</button>
+<div class="ftr" style="flex-direction:column;gap:6px">
+  <div style="display:flex;gap:8px">
+    <button class="btn" onclick="previewParse()">Preview</button>
+    <button class="btn pri" id="genBtn" onclick="generate()">Generate in Penpot</button>
+  </div>
+  <button class="btn" id="marginFixBtn" onclick="copyMarginFix()"
+    style="display:none;font-size:12px;background:var(--bg3);color:var(--t2)">
+    📋 Copy margin fix script
+  </button>
 </div>
 
 <div class="toast" id="toast"></div>
