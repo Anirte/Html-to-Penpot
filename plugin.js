@@ -202,12 +202,14 @@ function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlB
         const mb = parseFloat(cn.styles.marginBottom) || 0;
         const ml = parseFloat(cn.styles.marginLeft)   || 0;
         const mr = parseFloat(cn.styles.marginRight)  || 0;
-        // Use verticalMargin/horizontalMargin for uniform sides,
-        // topMargin/bottomMargin for individual control
+        // First set uniform values to initialize, then override with individual
+        shape.layoutChild.verticalMargin   = 0;
+        shape.layoutChild.horizontalMargin = 0;
+        // Individual values — this switches Penpot to "expanded" mode
         shape.layoutChild.topMargin    = mt;
+        shape.layoutChild.rightMargin  = mr;
         shape.layoutChild.bottomMargin = mb;
         shape.layoutChild.leftMargin   = ml;
-        shape.layoutChild.rightMargin  = mr;
       });
     } catch (e) {
       console.warn('[margin] error:', e.message);
