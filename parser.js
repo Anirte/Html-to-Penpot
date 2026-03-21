@@ -451,31 +451,64 @@ function copyMarginFix() {
 // Paste in browser console (F12) — no need to select anything first
 (function() {
   let clicked = 0;
-
-  // Click each layer item and fix its margin button
   const layers = document.querySelectorAll('[class*="layer_item__element-list-body"]');
+  const total = layers.length;
 
-  let i = 0;
-  function fixNext() {
-    if (i >= layers.length) {
-      console.log('Done! Fixed ' + clicked + ' elements');
-      return;
-    }
-    layers[i].click();
-    i++;
-    setTimeout(() => {
-      document.querySelectorAll('button').forEach(btn => {
-        const use = btn.querySelector('use');
-        const href = use && (use.getAttribute('href') || use.getAttribute('xlink:href'));
-        if (href === '#icon-margin') {
-          btn.click();
-          clicked++;
-        }
-      });
-      setTimeout(fixNext, 150);
-    }, 150);
+  if (total === 0) {
+    console.warn('No layers found — wait for Penpot to finish loading, then try again');
+    return;
   }
-  fixNext();
+
+  // Wait for Penpot to be "idle" — layer count stable for 600ms
+  let lastCount = 0;
+  let stableMs  = 0;
+  const CHECK_INTERVAL = 200;
+  const STABLE_NEEDED  = 600; // ms without change = ready
+
+  function waitForIdle(cb) {
+    const t = setInterval(() => {
+      const count = document.querySelectorAll('[class*="layer_item__element-list-body"]').length;
+      if (count === lastCount) {
+        stableMs += CHECK_INTERVAL;
+        if (stableMs >= STABLE_NEEDED) { clearInterval(t); cb(); }
+      } else {
+        lastCount = count;
+        stableMs  = 0;
+        console.log('Penpot still loading... (' + count + ' layers)');
+      }
+    }, CHECK_INTERVAL);
+  }
+
+  console.log('Waiting for Penpot to be ready...');
+  waitForIdle(() => {
+    const readyLayers = document.querySelectorAll('[class*="layer_item__element-list-body"]');
+    console.log('Ready! Fixing ' + readyLayers.length + ' elements...');
+
+    let i = 0;
+    function fixNext() {
+      if (i >= readyLayers.length) {
+        console.log('Done! Fixed ' + clicked + ' elements');
+        return;
+      }
+      // Progress every 50 elements
+      if (i % 50 === 0) console.log('Progress: ' + i + '/' + readyLayers.length);
+
+      readyLayers[i].click();
+      i++;
+      setTimeout(() => {
+        document.querySelectorAll('button').forEach(btn => {
+          const use = btn.querySelector('use');
+          const href = use && (use.getAttribute('href') || use.getAttribute('xlink:href'));
+          if (href === '#icon-margin') {
+            btn.click();
+            clicked++;
+          }
+        });
+        setTimeout(fixNext, 80); // 80ms instead of 150ms — twice as fast
+      }, 80);
+    }
+    fixNext();
+  });
 })();
 `.trim();
   navigator.clipboard.writeText(script).then(() => {
