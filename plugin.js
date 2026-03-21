@@ -123,20 +123,21 @@ function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlB
     // Append to parent first
     parentBoard.appendChild(board);
 
-    // Text layer
+    // Text layer — placed inside this node's board, at absolute canvas coords
     if (node.text && node.text.trim()) {
       const txt = penpot.createText(node.text.trim());
       if (txt) {
-        txt.name      = 'text';
-        txt.x         = absX;
-        txt.y         = absY;
-        txt.growType  = 'auto-height';
+        txt.name       = 'text';
+        txt.x          = absX;
+        txt.y          = absY;
+        txt.growType   = 'auto-height';
         txt.fontFamily = 'Inter';
         txt.fontSize   = String(Math.round(parseFloat(node.styles.fontSize) || 14));
         txt.fontWeight = safeWeight(node.styles.fontWeight);
         const tc = parseCssColor(node.styles.color);
         if (tc) txt.fills = [tc];
-        parentBoard.appendChild(txt);
+        // Append into THIS board, not the parent
+        board.appendChild(txt);
       }
     }
 
