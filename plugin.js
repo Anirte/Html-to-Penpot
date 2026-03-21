@@ -108,12 +108,16 @@ function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlB
       rect.name = node.name;
       rect.x    = absX;
       rect.y    = absY;
-      rect.resize(w, h);
+      rect.resize(w, Math.max(1, h));
       const bgFill = parseCssColor(node.styles.backgroundColor);
       rect.fills = bgFill ? [bgFill] : [];
       applyBorderRadius(rect, node.styles);
       applyStroke(rect, node.styles);
       parentBoard.appendChild(rect);
+      // HR stretches to fill parent width
+      if (node.tag === 'HR') {
+        try { if (rect.layoutChild) rect.layoutChild.horizontalSizing = 'fill'; } catch(e) {}
+      }
       return;
     }
 

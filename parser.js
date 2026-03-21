@@ -105,7 +105,7 @@ function loadSample() {
 
 const SKIP_TAGS = new Set([
   'SCRIPT','STYLE','META','LINK','HEAD','NOSCRIPT',
-  'SVG','PATH','DEFS','SYMBOL','USE','G','BR','HR','WBR',
+  'SVG','PATH','DEFS','SYMBOL','USE','G','BR','WBR',
 ]);
 
 const IMAGE_TAGS = new Set(['IMG','PICTURE','VIDEO']);
@@ -201,6 +201,7 @@ function buildHtml() {
 
 // ── Classify element: container / text / image / leaf
 function classifyElement(el, computed, visibleChildren, directText) {
+  if (el.tagName === 'HR') return 'leaf';
   if (IMAGE_TAGS.has(el.tagName)) return 'image';
   const bgImage = computed.backgroundImage || '';
   if (bgImage.includes('url(') && !bgImage.includes('gradient')) {
@@ -344,6 +345,7 @@ function parseIframe(opts) {
             // Always collect alignment for flex/grid elements
             // but NOT for block elements — UA stylesheet returns flex defaults
             // even for display:block which causes wrong layout in Penpot
+            const disp = computed.display;
             const isFlex = disp === 'flex' || disp === 'inline-flex';
             const isGrid = disp === 'grid' || disp === 'inline-grid';
             if (isFlex || isGrid) {
