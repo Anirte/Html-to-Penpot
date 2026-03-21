@@ -147,7 +147,9 @@ function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlB
 
         if (node.text && node.text.trim()) addTextChild(node, board, absX, absY);
 
-        childNodes.forEach((child, idx) => {
+        // Sort children left-to-right by x position before placing in grid
+        const sortedChildren = [...childNodes].sort((a, b) => a.bounds.x - b.bounds.x);
+        sortedChildren.forEach((child, idx) => {
           const shape = buildNodeReturnShape(child, board, absX, absY, node.bounds.x, node.bounds.y);
           if (shape) {
             try { grid.appendChild(shape, 0, idx); } catch (e) {}
