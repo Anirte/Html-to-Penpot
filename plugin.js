@@ -53,10 +53,12 @@ penpot.ui.onMessage(async (message) => {
       totalCreated++;
     }
 
-    // Select all shapes that have non-zero margins
+    console.log('[margins] shapes with non-zero margin:', shapesWithMargin.length);
     if (shapesWithMargin.length > 0) {
+      console.log('[margins] first 3:', shapesWithMargin.slice(0,3).map(s => s?.name + ' id:' + s?.id));
       try {
         penpot.selection = shapesWithMargin;
+        console.log('[margins] selection set OK, count:', penpot.selection?.length);
       } catch (e) {
         console.warn('[selection] error:', e.message);
       }
@@ -75,9 +77,7 @@ penpot.ui.onMessage(async (message) => {
 // Use Grid Layout for CSS flex-row containers with multiple children.
 // Grid with 1fr columns = flex:1 in browser — children always fill width evenly.
 function shouldUseGrid(node) {
-  const isFlex = node.styles.display === 'flex' || node.styles.display === 'inline-flex';
-  const isRow  = !((node.styles.flexDirection || '').includes('column'));
-  return isFlex && isRow && (node.children || []).length > 1;
+  return false; // temporarily disabled — has ordering bug in Penpot API
 }
 
 function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlBaseY, shapesWithMargin) {
@@ -167,7 +167,7 @@ function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlB
         // Sort children left-to-right by x position before placing in grid
         const sortedChildren = [...childNodes].sort((a, b) => a.bounds.x - b.bounds.x);
         sortedChildren.forEach((child, idx) => {
-          const shape = buildNodeReturnShape(child, board, absX, absY, node.bounds.x, node.bounds.y, shapesWithMargin);
+          const shape = buildNodeReturnShape(child, board, absX, absY, node.bounds.x, node.bounds.y);
           if (shape) {
             try { grid.appendChild(shape, 0, idx); } catch (e) {}
           }
@@ -245,6 +245,9 @@ function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlB
           // Track shapes with non-zero margins for bulk selection
           if (mt !== 0 || mb !== 0 || ml !== 0 || mr !== 0) {
             shapesWithMargin.push(shape);
+            if (shapesWithMargin.length <= 3) {
+              console.log('[margin] tracked:', shape?.name, {mt, mb, ml, mr});
+            }
           }
         });
       } catch (e) {
@@ -259,8 +262,7 @@ function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlB
 
 // Build a node and return the shape — used by Grid Layout to get the shape
 // reference before placing it into a grid cell.
-function buildNodeReturnShape(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlBaseY, shapesWithMargin) {
-  if (!shapesWithMargin) shapesWithMargin = [];
+function buildNodeReturnShape(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlBaseY) {
   try {
     const relX = node.bounds.x - htmlBaseX;
     const relY = node.bounds.y - htmlBaseY;
@@ -348,7 +350,7 @@ function buildNodeReturnShape(node, parentBoard, canvasBaseX, canvasBaseY, htmlB
     if (node.text && node.text.trim()) addTextChild(node, board, absX, absY);
 
     (node.children || []).forEach(child => {
-      buildNode(child, board, absX, absY, node.bounds.x, node.bounds.y, shapesWithMargin);
+      buildNode(child, board, absX, absY, node.bounds.x, node.bounds.y);
     });
 
     return board;
