@@ -76,9 +76,9 @@ penpot.ui.onMessage(async (message) => {
         if (txt) {
           // growType, fontFamily, fontSize, fontWeight — all writable
           txt.growType   = 'auto-height';
-          txt.fontFamily = cleanFont(node.styles.fontFamily) || 'Inter';
+          txt.fontFamily = 'Inter'; // always use Inter — safe fallback
           txt.fontSize   = String(Math.round(parseFloat(node.styles.fontSize) || 14));
-          txt.fontWeight = node.styles.fontWeight || '400';
+          txt.fontWeight = safeWeight(node.styles.fontWeight);
           txt.x = 0;
           txt.y = 0;
           const tc = parseCssColor(node.styles.color);
@@ -121,6 +121,13 @@ function rgbToHex(r, g, b) {
   return '#' + [r, g, b]
     .map(v => Math.max(0, Math.min(255, v)).toString(16).padStart(2, '0'))
     .join('');
+}
+
+// Only weights Inter supports
+function safeWeight(w) {
+  const valid = ['100','200','300','400','500','600','700','800','900'];
+  const n = String(Math.round(parseFloat(w) / 100) * 100);
+  return valid.includes(n) ? n : '400';
 }
 
 // "IBM Plex Sans", sans-serif → IBM Plex Sans

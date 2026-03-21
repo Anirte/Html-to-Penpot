@@ -193,7 +193,7 @@ If your HTML already has &lt;style&gt; tags inside, you don't need this tab."></
       </div>
       <div class="opt-row">
         <span style="flex:1">Max depth (layers)</span>
-        <input type="number" id="optMaxDepth" value="12" min="2" max="30">
+        <input type="number" id="optMaxDepth" value="8" min="2" max="30">
       </div>
     </div>
   </div>
@@ -344,7 +344,7 @@ function getOptions() {
     width:    parseInt(document.getElementById('optWidth').value)   || 1440,
     height:   parseInt(document.getElementById('optHeight').value)  || 900,
     minSize:  parseInt(document.getElementById('optMinSize').value) || 4,
-    maxDepth: parseInt(document.getElementById('optMaxDepth').value)|| 12,
+    maxDepth: parseInt(document.getElementById('optMaxDepth').value)|| 8,
     incText:   document.getElementById('chkText').classList.contains('on'),
     incBg:     document.getElementById('chkBg').classList.contains('on'),
     incBorder: document.getElementById('chkBorder').classList.contains('on'),
