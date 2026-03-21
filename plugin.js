@@ -147,40 +147,26 @@ function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlB
         const dir = node.styles.flexDirection || 'row';
         flex.dir = dir.includes('column') ? 'column' : 'row';
 
-        // wrap: only when CSS explicitly says wrap, otherwise keep nowrap
+        // nowrap by default — elements stay inside the container
+        // wrap only if CSS explicitly uses it
         const cssWrap = node.styles.flexWrap || '';
         flex.wrap = (cssWrap === 'wrap' || cssWrap === 'wrap-reverse') ? 'wrap' : 'nowrap';
 
-        // alignContent — only relevant when wrap is on
-        if (flex.wrap === 'wrap') {
-          const ac = node.styles.alignContent || '';
-          flex.alignContent = ac === 'center'        ? 'center'
-                            : ac === 'flex-end'      ? 'end'
-                            : ac === 'space-between' ? 'space-between'
-                            : ac === 'space-around'  ? 'space-around'
-                            : ac === 'space-evenly'  ? 'space-evenly'
-                            : ac === 'stretch'       ? 'stretch'
-                            : 'start';
-        }
-
-        // alignItems — for non-flex containers with padding, center the content
+        // alignItems — map CSS values directly, no override
         const ai = node.styles.alignItems || '';
-        const isFlex = node.styles.display === 'flex' || node.styles.display === 'inline-flex';
-        flex.alignItems = ai === 'center'      ? 'center'
-                        : ai === 'flex-end'    ? 'end'
-                        : ai === 'stretch'     ? 'stretch'
-                        : isFlex ? 'start'
-                        : 'center'; // non-flex with padding → center content
+        if (ai === 'center')   flex.alignItems = 'center';
+        else if (ai === 'flex-end' || ai === 'end') flex.alignItems = 'end';
+        else if (ai === 'stretch') flex.alignItems = 'stretch';
+        else flex.alignItems = 'start';
 
-        // justifyContent
+        // justifyContent — map CSS values directly, no override
         const jc = node.styles.justifyContent || '';
-        flex.justifyContent = jc === 'center'        ? 'center'
-                            : jc === 'flex-end'      ? 'end'
-                            : jc === 'space-between' ? 'space-between'
-                            : jc === 'space-around'  ? 'space-around'
-                            : jc === 'space-evenly'  ? 'space-evenly'
-                            : isFlex ? 'start'
-                            : 'center'; // non-flex with padding → center content
+        if (jc === 'center')          flex.justifyContent = 'center';
+        else if (jc === 'flex-end')   flex.justifyContent = 'end';
+        else if (jc === 'space-between') flex.justifyContent = 'space-between';
+        else if (jc === 'space-around')  flex.justifyContent = 'space-around';
+        else if (jc === 'space-evenly')  flex.justifyContent = 'space-evenly';
+        else flex.justifyContent = 'start';
 
         // Padding
         flex.topPadding    = pt;
