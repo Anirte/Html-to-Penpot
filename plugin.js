@@ -193,7 +193,7 @@ function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlB
     // After children are appended, apply their layoutChild margins
     // We need to iterate board.children which are already appended shapes
     try {
-      const childShapes = board.children || [];
+      const childShapes = [...(board.children || [])].reverse();
       const childNodes  = node.children  || [];
       childShapes.forEach((shape, i) => {
         const cn = childNodes[i];
