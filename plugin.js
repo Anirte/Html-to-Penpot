@@ -147,15 +147,17 @@ function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlB
         const dir = node.styles.flexDirection || 'row';
         flex.dir = dir.includes('column') ? 'column' : 'row';
 
-        // Wrap
-        flex.wrap = node.styles.flexWrap === 'wrap' ? 'wrap' : 'nowrap';
+        // nowrap keeps children inside the container
+        // wrap only if CSS explicitly says wrap
+        const cssWrap = node.styles.flexWrap || '';
+        flex.wrap = cssWrap === 'wrap' || cssWrap === 'wrap-reverse' ? 'wrap' : 'nowrap';
 
-        // Align items
-        const ai = node.styles.alignItems || '';
-        flex.alignItems = ai === 'center'    ? 'center'
-                        : ai === 'flex-end'  ? 'end'
-                        : ai === 'flex-start'? 'start'
-                        : 'start';
+        // Align items — map CSS values to Penpot values
+        const ai = node.styles.alignItems || 'flex-start';
+        flex.alignItems = ai === 'center'     ? 'center'
+                        : ai === 'flex-end'   ? 'end'
+                        : ai === 'stretch'    ? 'stretch'
+                        : 'start'; // flex-start and default → start
 
         // Justify content
         const jc = node.styles.justifyContent || '';
