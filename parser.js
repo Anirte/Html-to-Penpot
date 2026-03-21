@@ -205,6 +205,20 @@ function parseIframe(opts) {
           const body = doc.body;
           if (!body) return reject(new Error('No <body> in HTML'));
 
+          // Remove overflow hidden so all content is visible for parsing
+          body.style.overflow = 'visible';
+          body.style.height   = 'auto';
+          doc.querySelectorAll('*').forEach(el => {
+            const cs = win.getComputedStyle(el);
+            if (cs.overflow === 'hidden' || cs.overflow === 'scroll') {
+              el.style.overflow = 'visible';
+            }
+            if (cs.height === '100vh' || cs.maxHeight === '100vh') {
+              el.style.height    = 'auto';
+              el.style.maxHeight = 'none';
+            }
+          });
+
           // CRITICAL: single coordinate origin = body's top-left corner
           // All bounds.x/y are relative to this point
           const rootRect = body.getBoundingClientRect();
@@ -296,7 +310,7 @@ function parseIframe(opts) {
         } catch (e) {
           reject(e);
         }
-      }, 600);
+      }, 2500);
     };
 
     iframe.onerror = () => reject(new Error('iframe failed to load'));
