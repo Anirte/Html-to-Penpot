@@ -37,19 +37,19 @@ penpot.ui.onMessage(async (message) => {
 
     const totalW = Math.max(1, maxX - minX);
     const totalH = Math.max(1, maxY - minY);
+    const PAD = 48;
 
-    // Single root board wrapping everything
+    // Single root board — transparent with padding around content
     const rootBoard = penpot.createBoard();
     rootBoard.name = 'HTML Import';
-    const PADDING = 40; // extra space around content
-    rootBoard.resize(totalW + PADDING * 2, totalH + PADDING * 2);
-    rootBoard.x = center.x - totalW / 2;
-    rootBoard.y = center.y - totalH / 2;
-    rootBoard.fills = []; // transparent background
+    rootBoard.resize(totalW + PAD * 2, totalH + PAD * 2);
+    rootBoard.x = center.x - (totalW + PAD * 2) / 2;
+    rootBoard.y = center.y - (totalH + PAD * 2) / 2;
+    rootBoard.fills = [];
 
     let totalCreated = 0;
     for (const node of nodes) {
-      buildNode(node, rootBoard, rootBoard.x + PADDING, rootBoard.y + PADDING, minX, minY);
+      buildNode(node, rootBoard, rootBoard.x + PAD, rootBoard.y + PAD, minX, minY);
       totalCreated++;
     }
 
@@ -85,9 +85,6 @@ function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlB
         const tc = parseCssColor(node.styles.color);
         if (tc) txt.fills = [tc];
         parentBoard.appendChild(txt);
-        try {
-          if (txt.layoutChild) txt.layoutChild.horizontalSizing = 'fill';
-        } catch (e) { /* skip */ }
       }
       return;
     }
@@ -171,24 +168,20 @@ function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlB
     // Append to parent BEFORE adding children
     parentBoard.appendChild(board);
 
-    // Direct text inside container — fill width so text wraps within parent
+    // Direct text inside container — add as child of board (layout handles positioning)
     if (node.text && node.text.trim()) {
       const txt = penpot.createText(node.text.trim());
       if (txt) {
         txt.name       = node.name + ' text';
         txt.x          = absX;
         txt.y          = absY;
-        txt.growType   = 'auto-height'; // height adjusts to content, width fills parent
+        txt.growType   = 'auto-width';
         txt.fontFamily = 'Inter';
         txt.fontSize   = String(Math.round(parseFloat(node.styles.fontSize) || 14));
         txt.fontWeight = safeWeight(node.styles.fontWeight);
         const tc = parseCssColor(node.styles.color);
         if (tc) txt.fills = [tc];
         board.appendChild(txt);
-        // Fill parent width so text wraps instead of overflowing
-        try {
-          if (txt.layoutChild) txt.layoutChild.horizontalSizing = 'fill';
-        } catch (e) { /* skip */ }
       }
     }
 
