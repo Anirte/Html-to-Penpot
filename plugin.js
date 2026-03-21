@@ -244,10 +244,15 @@ function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlB
           shape.layoutChild.bottomMargin = mb;
           shape.layoutChild.leftMargin   = ml;
           // flexGrow > 0 means element fills available space
+          // direction depends on parent flex direction
           const fg = parseFloat(cn.styles.flexGrow) || 0;
           if (fg > 0) {
-            console.log('[flexGrow] applying fill to:', shape.name, 'fg:', fg);
-            shape.layoutChild.horizontalSizing = 'fill';
+            const parentDir = node.styles.flexDirection || '';
+            if (parentDir.includes('column')) {
+              shape.layoutChild.verticalSizing = 'fill';
+            } else {
+              shape.layoutChild.horizontalSizing = 'fill';
+            }
           }
           if (mt !== 0 || mb !== 0 || ml !== 0 || mr !== 0) {
             shapesWithMargin.push(shape);
