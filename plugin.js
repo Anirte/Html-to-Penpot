@@ -79,12 +79,15 @@ function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlB
         txt.y          = absY;
         txt.growType   = 'auto-height';
         txt.resize(w, h);
-        txt.fontFamily = 'Inter';
+        txt.fontFamily = resolveFont(node.styles.fontFamily);
         txt.fontSize   = String(Math.round(parseFloat(node.styles.fontSize) || 14));
         txt.fontWeight = safeWeight(node.styles.fontWeight);
         const tc = parseCssColor(node.styles.color);
         if (tc) txt.fills = [tc];
         parentBoard.appendChild(txt);
+        try {
+          if (txt.layoutChild) txt.layoutChild.horizontalSizing = 'fill';
+        } catch (e) { /* skip */ }
       }
       return;
     }
@@ -175,13 +178,16 @@ function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlB
         txt.name       = node.name + ' text';
         txt.x          = absX;
         txt.y          = absY;
-        txt.growType   = 'auto-width';
-        txt.fontFamily = 'Inter';
+        txt.growType   = 'auto-height';
+        txt.fontFamily = resolveFont(node.styles.fontFamily);
         txt.fontSize   = String(Math.round(parseFloat(node.styles.fontSize) || 14));
         txt.fontWeight = safeWeight(node.styles.fontWeight);
         const tc = parseCssColor(node.styles.color);
         if (tc) txt.fills = [tc];
         board.appendChild(txt);
+        try {
+          if (txt.layoutChild) txt.layoutChild.horizontalSizing = 'fill';
+        } catch (e) { /* skip */ }
       }
     }
 
@@ -283,6 +289,44 @@ function parseCssColor(str) {
 
 function rgbToHex(r, g, b) {
   return '#' + [r, g, b].map(v => Math.max(0, Math.min(255, v)).toString(16).padStart(2, '0')).join('');
+}
+
+// Font mapping — system fonts → Google Fonts equivalents
+const FONT_MAP = {
+  'system-ui':        'Inter',
+  '-apple-system':    'Inter',
+  'blinkmacsystemfont': 'Inter',
+  'segoe ui':         'Inter',
+  'helvetica neue':   'Inter',
+  'helvetica':        'Inter',
+  'arial':            'Inter',
+  'sans-serif':       'Inter',
+  'georgia':          'Lora',
+  'times new roman':  'Lora',
+  'times':            'Lora',
+  'serif':            'Lora',
+  'courier new':      'Roboto Mono',
+  'courier':          'Roboto Mono',
+  'monospace':        'Roboto Mono',
+  'consolas':         'Roboto Mono',
+  'ibm plex sans':    'IBM Plex Sans',
+  'ibm plex mono':    'IBM Plex Mono',
+};
+
+function resolveFont(cssFamily) {
+  if (!cssFamily) return 'Inter';
+  // CSS fontFamily can be: "IBM Plex Sans", sans-serif
+  const parts = cssFamily.split(',').map(s => s.trim().replace(/['"]/g, '').toLowerCase());
+  for (const part of parts) {
+    // Check if font exists in Penpot directly
+    const found = penpot.fonts.findByName(
+      part.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
+    );
+    if (found) return found.name;
+    // Check our mapping
+    if (FONT_MAP[part]) return FONT_MAP[part];
+  }
+  return 'Inter';
 }
 
 function safeWeight(w) {
