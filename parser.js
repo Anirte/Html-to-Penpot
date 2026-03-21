@@ -273,6 +273,7 @@ function parseIframe(opts) {
 
           let nodeCount = 0;
           let skipCount = 0;
+          let marginCount = 0;
 
           function walkNode(el, depth) {
             if (depth > opts.maxDepth) return null;
@@ -351,6 +352,13 @@ function parseIframe(opts) {
               });
             }
 
+            // Count non-zero margins for debug
+            const hasMargin = (parseFloat(styles.marginTop) || 0) !== 0
+                            || (parseFloat(styles.marginBottom) || 0) !== 0
+                            || (parseFloat(styles.marginLeft) || 0) !== 0
+                            || (parseFloat(styles.marginRight) || 0) !== 0;
+            if (hasMargin) marginCount++;
+
             return { id: nodeCount, tag, name, kind, text: directText, bounds, styles, children };
           }
 
@@ -360,6 +368,7 @@ function parseIframe(opts) {
             if (node) roots.push(node);
           });
 
+          console.log('[parser] nodes with non-zero margin:', marginCount, '/', nodeCount);
           resolve({ roots, nodeCount, skipCount, viewport: { width: opts.width, height: opts.height } });
 
         } catch (e) {
@@ -430,9 +439,8 @@ window.addEventListener('message', event => {
     btn.textContent = 'Generate in Penpot';
     log(`✓ Created ${event.data.count} frames in Penpot!`);
     if (event.data.needsMarginFix) {
-      log('⚠ Run the margin fix script in browser console (F12):');
-      log('Click "Copy margin fix" button below');
-      document.getElementById('marginFixBtn').style.display = 'block';
+      log(`⚠ ${event.data.marginCount} elements with margins are selected in Penpot.`);
+      log('→ Click the "Margin - multiple" button in the right panel once to fix all.');
     }
     toast(`✓ ${event.data.count} frames created!`);
   }
@@ -443,94 +451,6 @@ window.addEventListener('message', event => {
     toast('Penpot error', '#e86060');
   }
 });
-
-// ── Margin fix script — paste in browser console after generation
-function copyMarginFix() {
-  const script = `
-// Penpot margin-multiple fix
-// Paste in browser console (F12) — no need to select anything first
-(function() {
-  let clicked = 0;
-  let skipped = 0;
-  const layers = document.querySelectorAll('[class*="layer_item__element-list-body"]');
-  const total = layers.length;
-
-  if (total === 0) {
-    console.warn('No layers found — wait for Penpot to finish loading, then try again');
-    return;
-  }
-
-  // Wait for Penpot to be "idle" — layer count stable for 600ms
-  let lastCount = 0;
-  let stableMs  = 0;
-  const CHECK_INTERVAL = 200;
-  const STABLE_NEEDED  = 600;
-
-  function waitForIdle(cb) {
-    const t = setInterval(() => {
-      const count = document.querySelectorAll('[class*="layer_item__element-list-body"]').length;
-      if (count === lastCount) {
-        stableMs += CHECK_INTERVAL;
-        if (stableMs >= STABLE_NEEDED) { clearInterval(t); cb(); }
-      } else {
-        lastCount = count;
-        stableMs  = 0;
-        console.log('Penpot still loading... (' + count + ' layers)');
-      }
-    }, CHECK_INTERVAL);
-  }
-
-  console.log('Waiting for Penpot to be ready...');
-  waitForIdle(() => {
-    const readyLayers = document.querySelectorAll('[class*="layer_item__element-list-body"]');
-    console.log('Ready! Processing ' + readyLayers.length + ' elements...');
-
-    let i = 0;
-    function fixNext() {
-      if (i >= readyLayers.length) {
-        console.log('Done! Fixed ' + clicked + ' elements, skipped ' + skipped + ' (zero margins)');
-        return;
-      }
-      if (i % 100 === 0) console.log('Progress: ' + i + '/' + readyLayers.length);
-
-      readyLayers[i].click();
-      i++;
-      setTimeout(() => {
-        // Only click margin button if element has non-zero margins
-        // Uses Penpot 2.14 layout_item input class
-        const marginInputs = Array.from(
-          document.querySelectorAll('[class*="layout_item__numeric-input"]')
-        );
-        const hasNonZeroMargin = marginInputs.some(inp => {
-          const v = parseFloat(inp.value);
-          return !isNaN(v) && v !== 0;
-        });
-
-        if (hasNonZeroMargin) {
-          document.querySelectorAll('button').forEach(btn => {
-            const use = btn.querySelector('use');
-            const href = use && (use.getAttribute('href') || use.getAttribute('xlink:href'));
-            if (href === '#icon-margin') {
-              btn.click();
-              clicked++;
-            }
-          });
-        } else {
-          skipped++;
-        }
-
-        setTimeout(fixNext, 80);
-      }, 80);
-    }
-    fixNext();
-  });
-})();
-`.trim();
-  navigator.clipboard.writeText(script).then(() => {
-    toast('Script copied! Paste in browser console (F12)');
-    log('Script copied to clipboard. Open F12 → Console → paste → Enter');
-  });
-}
 
 // ── Viewport presets
 const PRESETS = {
