@@ -85,7 +85,7 @@ function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlB
         txt.name       = node.name;
         txt.x          = absX;
         txt.y          = absY;
-        txt.growType   = 'fixed';
+        txt.growType   = 'auto-height'; // wraps text, grows vertically
         txt.resize(w, h);
         txt.fontFamily = 'Inter';
         txt.fontSize   = String(Math.round(parseFloat(node.styles.fontSize) || 14));
@@ -143,14 +143,19 @@ function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlB
         board.verticalSizing   = 'fix';
         const flex = board.addFlexLayout();
 
-        // Direction — column if flex-direction says so, otherwise row
-        const dir = node.styles.flexDirection || 'row';
-        flex.dir = dir.includes('column') ? 'column' : 'row';
+        // Flex elements use their CSS direction
+        // Block elements (div, p, etc) flow vertically → column
+        const cssFlex = node.styles.display === 'flex' || node.styles.display === 'inline-flex';
+        const cssDir  = node.styles.flexDirection || '';
+        if (cssFlex) {
+          flex.dir = cssDir.includes('column') ? 'column' : 'row';
+        } else {
+          // Block layout flows top-to-bottom = column in Penpot
+          flex.dir = 'column';
+        }
 
-        // nowrap by default — elements stay inside the container
-        // wrap only if CSS explicitly uses it
-        const cssWrap = node.styles.flexWrap || '';
-        flex.wrap = (cssWrap === 'wrap' || cssWrap === 'wrap-reverse') ? 'wrap' : 'nowrap';
+        // wrap keeps children inside the board boundaries
+        flex.wrap = 'wrap';
 
         // alignItems — map CSS values directly, no override
         const ai = node.styles.alignItems || '';
