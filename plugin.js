@@ -130,30 +130,33 @@ function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlB
 
       // Direction: CSS flex uses flexDirection, block elements flow as column
       const isCssFlex = node.styles.display === 'flex' || node.styles.display === 'inline-flex';
+      const isButton  = node.tag === 'BUTTON' || node.tag === 'INPUT';
       if (isCssFlex) {
         const cssDir = node.styles.flexDirection || '';
         flex.dir = cssDir.includes('column') ? 'column' : 'row';
       } else {
-        flex.dir = 'column'; // block elements stack vertically
+        flex.dir = isButton ? 'row' : 'column';
       }
 
       // wrap: children stay inside boundaries
       flex.wrap = 'wrap';
 
-      // alignItems — map CSS → Penpot
+      // alignItems — buttons center by default (UA stylesheet)
       const ai = node.styles.alignItems || '';
-      flex.alignItems = ai === 'center'               ? 'center'
+      flex.alignItems = ai === 'center'                     ? 'center'
                       : (ai === 'flex-end' || ai === 'end') ? 'end'
-                      : ai === 'stretch'              ? 'stretch'
+                      : ai === 'stretch'                    ? 'stretch'
+                      : isButton                            ? 'center'
                       : 'start';
 
-      // justifyContent — map CSS → Penpot
+      // justifyContent — buttons center by default
       const jc = node.styles.justifyContent || '';
       flex.justifyContent = jc === 'center'           ? 'center'
                           : jc === 'flex-end'         ? 'end'
                           : jc === 'space-between'    ? 'space-between'
                           : jc === 'space-around'     ? 'space-around'
                           : jc === 'space-evenly'     ? 'space-evenly'
+                          : isButton                  ? 'center'
                           : 'start';
 
       // Padding

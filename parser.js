@@ -264,6 +264,13 @@ function parseIframe(opts) {
               return cr.width >= opts.minSize && cr.height >= opts.minSize;
             });
 
+            // Always collect alignment — UA stylesheet filters these out above
+            // but buttons/flex elements need them for correct centering
+            ['alignItems','justifyContent','textAlign'].forEach(p => {
+              const v = computed[p];
+              if (v) styles[p] = v;
+            });
+
             // Get direct text
             const directText = opts.incText ? getDirectText(el) : '';
 
