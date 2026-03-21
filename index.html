@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HTML to Penpot</title>
+<style>
+/* ── Theme */
+[data-theme="dark"] {
+  --bg:#0e0e12;--bg2:#15151c;--bg3:#1c1c26;
+  --line:rgba(255,255,255,.08);--line2:rgba(255,255,255,.18);
+  --t1:#e8e8f0;--t2:#9090a8;--t3:#50505e;
+  --inp:#1c1c26;--inp-b:rgba(255,255,255,.12);
+  --accent:#5b6af5;
+}
+[data-theme="light"] {
+  --bg:#f5f5f7;--bg2:#ffffff;--bg3:#ebebef;
+  --line:rgba(0,0,0,.08);--line2:rgba(0,0,0,.18);
+  --t1:#111118;--t2:#555568;--t3:#aaaabc;
+  --inp:#fff;--inp-b:rgba(0,0,0,.14);
+  --accent:#5b6af5;
+}
+@media(prefers-color-scheme:dark){[data-theme="system"]{--bg:#0e0e12;--bg2:#15151c;--bg3:#1c1c26;--line:rgba(255,255,255,.08);--line2:rgba(255,255,255,.18);--t1:#e8e8f0;--t2:#9090a8;--t3:#50505e;--inp:#1c1c26;--inp-b:rgba(255,255,255,.12);--accent:#5b6af5;}}
+@media(prefers-color-scheme:light){[data-theme="system"]{--bg:#f5f5f7;--bg2:#ffffff;--bg3:#ebebef;--line:rgba(0,0,0,.08);--line2:rgba(0,0,0,.18);--t1:#111118;--t2:#555568;--t3:#aaaabc;--inp:#fff;--inp-b:rgba(0,0,0,.14);--accent:#5b6af5;}}
+
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:system-ui,sans-serif;background:var(--bg);color:var(--t1);height:100vh;display:flex;flex-direction:column;overflow:hidden}
+
+/* ── Header */
+.hdr{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--line);background:var(--bg2);flex-shrink:0}
+.hdr-dot{width:7px;height:7px;border-radius:50%;background:var(--accent);box-shadow:0 0 8px rgba(91,106,245,.5)}
+.hdr-title{font-size:14px;font-weight:600}
+.hdr-sub{font-size:11px;color:var(--t3);margin-left:auto}
+
+/* ── Tabs */
+.tabs{display:flex;border-bottom:1px solid var(--line);background:var(--bg2);flex-shrink:0}
+.tab{font-size:13px;font-weight:500;padding:8px 14px;background:none;border:none;border-bottom:2px solid transparent;color:var(--t3);cursor:pointer}
+.tab.on{color:var(--t1);border-bottom-color:var(--accent)}
+
+/* ── Body */
+.body{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:12px}
+
+/* ── Section */
+.sec-label{font-size:11px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:var(--t3);margin-bottom:5px;display:flex;justify-content:space-between;align-items:center}
+.sec-label span{font-size:11px;color:var(--t3);text-transform:none;letter-spacing:0;font-weight:400}
+
+/* ── Textarea */
+textarea.code-in{
+  font-family:'Consolas','Fira Code',monospace;
+  font-size:12px;
+  line-height:1.5;
+  width:100%;
+  padding:10px;
+  background:var(--inp);
+  border:1px solid var(--inp-b);
+  border-radius:6px;
+  color:var(--t1);
+  outline:none;
+  resize:vertical;
+}
+textarea.code-in:focus{border-color:var(--accent)}
+textarea.code-in::placeholder{color:var(--t3)}
+
+/* ── Options */
+.opt-row{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--t2)}
+.opt-row input[type=number]{
+  width:64px;font-family:monospace;font-size:13px;
+  padding:4px 6px;background:var(--inp);border:1px solid var(--inp-b);
+  border-radius:4px;color:var(--t1);outline:none;
+}
+.opt-row input[type=number]:focus{border-color:var(--accent)}
+.check-box{width:15px;height:15px;border-radius:3px;border:1.5px solid var(--line2);background:none;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.check-box.on{background:var(--accent);border-color:var(--accent)}
+.check-box.on::after{content:'✓';font-size:10px;color:#fff;line-height:1}
+
+/* ── Stats bar */
+.stats{font-size:12px;color:var(--t3);padding:6px 10px;background:var(--bg3);border:1px solid var(--line);border-radius:5px;display:none}
+.stats.show{display:block}
+
+/* ── Log */
+.log{font-family:monospace;font-size:11px;color:var(--t2);padding:8px 10px;background:var(--bg3);border:1px solid var(--line);border-radius:5px;max-height:80px;overflow-y:auto;display:none;white-space:pre-wrap}
+.log.show{display:block}
+
+/* ── Footer */
+.ftr{padding:12px 14px;border-top:1px solid var(--line);background:var(--bg2);flex-shrink:0;display:flex;gap:8px}
+.btn{font-size:13px;font-weight:600;padding:8px 14px;border-radius:6px;border:1px solid var(--line2);background:var(--bg3);color:var(--t2);cursor:pointer;flex:1}
+.btn:hover{color:var(--t1)}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.pri:hover{opacity:.9}
+.btn:disabled{opacity:.35;cursor:not-allowed}
+
+/* ── Toast */
+.toast{position:fixed;bottom:14px;left:50%;transform:translateX(-50%);background:#22d4a0;color:#041a10;font-size:13px;font-weight:700;padding:5px 14px;border-radius:20px;opacity:0;pointer-events:none;transition:opacity .15s;z-index:9999;white-space:nowrap}
+.toast.show{opacity:1}
+
+/* ── Hidden renderer iframe */
+#renderer{position:absolute;left:-9999px;top:-9999px;width:1440px;height:900px;border:none;visibility:hidden}
+
+::-webkit-scrollbar{width:3px}
+::-webkit-scrollbar-thumb{background:var(--line2);border-radius:2px}
+</style>
+</head>
+<body data-theme="system">
+
+<div class="hdr">
+  <div class="hdr-dot"></div>
+  <span class="hdr-title">HTML to Penpot</span>
+  <span class="hdr-sub">paste → frames</span>
+</div>
+
+<!-- Tabs: HTML / CSS / Options -->
+<div class="tabs">
+  <button class="tab on" onclick="switchTab('html',this)">HTML</button>
+  <button class="tab"    onclick="switchTab('css',this)">CSS</button>
+  <button class="tab"    onclick="switchTab('opts',this)">Options</button>
+</div>
+
+<div class="body" id="body">
+
+  <!-- ── HTML tab -->
+  <div id="tab-html">
+    <div class="sec-label">
+      HTML code
+      <span>paste full file or snippet</span>
+    </div>
+    <textarea class="code-in" id="htmlIn" rows="18"
+      placeholder="Paste your HTML here...
+
+You can paste:
+• A full HTML file (with &lt;style&gt; inside)
+• Just the &lt;body&gt; content
+• Any HTML snippet
+
+If your CSS is in a separate file, switch to the CSS tab and paste it there."></textarea>
+    <div style="margin-top:6px;display:flex;gap:6px">
+      <button class="btn" onclick="loadSample()" style="flex:0 0 auto;font-size:12px;padding:5px 10px">Load sample</button>
+      <button class="btn" onclick="clearAll()" style="flex:0 0 auto;font-size:12px;padding:5px 10px">Clear</button>
+    </div>
+  </div>
+
+  <!-- ── CSS tab -->
+  <div id="tab-css" style="display:none">
+    <div class="sec-label">
+      External CSS
+      <span>optional — if separate from HTML</span>
+    </div>
+    <textarea class="code-in" id="cssIn" rows="18"
+      placeholder="Paste your CSS here (optional)...
+
+This CSS will be injected into the HTML before rendering.
+If your HTML already has &lt;style&gt; tags inside, you don't need this tab."></textarea>
+  </div>
+
+  <!-- ── Options tab -->
+  <div id="tab-opts" style="display:none">
+    <div class="sec-label" style="margin-bottom:10px">Rendering</div>
+
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div class="opt-row">
+        <span style="flex:1">Viewport width (px)</span>
+        <input type="number" id="optWidth" value="1440" min="320" max="3840">
+      </div>
+      <div class="opt-row">
+        <span style="flex:1">Viewport height (px)</span>
+        <input type="number" id="optHeight" value="900" min="200" max="2160">
+      </div>
+      <div class="opt-row">
+        <div class="check-box on" id="chkText" onclick="toggleCheck(this)"></div>
+        <span>Include text layers</span>
+      </div>
+      <div class="opt-row">
+        <div class="check-box on" id="chkBg" onclick="toggleCheck(this)"></div>
+        <span>Include background colors</span>
+      </div>
+      <div class="opt-row">
+        <div class="check-box on" id="chkBorder" onclick="toggleCheck(this)"></div>
+        <span>Include borders</span>
+      </div>
+      <div class="opt-row">
+        <div class="check-box" id="chkHidden" onclick="toggleCheck(this)"></div>
+        <span>Include hidden elements</span>
+      </div>
+      <div class="opt-row">
+        <span style="flex:1">Min element size (px)</span>
+        <input type="number" id="optMinSize" value="4" min="1" max="20">
+      </div>
+      <div class="opt-row">
+        <span style="flex:1">Max depth (layers)</span>
+        <input type="number" id="optMaxDepth" value="12" min="2" max="30">
+      </div>
+    </div>
+  </div>
+
+  <!-- Stats + log (shown after parse) -->
+  <div class="stats" id="stats"></div>
+  <div class="log"   id="log"></div>
+
+</div>
+
+<div class="ftr">
+  <button class="btn" onclick="previewParse()">Preview</button>
+  <button class="btn pri" id="genBtn" onclick="generate()">Generate in Penpot</button>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- Hidden iframe where we render the HTML to measure elements -->
+<iframe id="renderer" sandbox="allow-same-origin allow-scripts"></iframe>
+
+<script>
+// ══════════════════════════════════════════ TABS
+function switchTab(name, btn) {
+  ['html','css','opts'].forEach(t => {
+    document.getElementById('tab-' + t).style.display = t === name ? '' : 'none';
+  });
+  document.querySelectorAll('.tab').forEach(b => b.classList.toggle('on', b === btn));
+}
+
+function toggleCheck(el) {
+  el.classList.toggle('on');
+}
+
+// ══════════════════════════════════════════ HELPERS
+function toast(msg, color) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.background = color || '#22d4a0';
+  t.style.color = color ? '#fff' : '#041a10';
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+function log(msg) {
+  const el = document.getElementById('log');
+  el.classList.add('show');
+  el.textContent += msg + '\n';
+  el.scrollTop = el.scrollHeight;
+}
+
+function clearLog() {
+  const el = document.getElementById('log');
+  el.textContent = '';
+  el.classList.remove('show');
+}
+
+function showStats(nodes, skipped) {
+  const el = document.getElementById('stats');
+  el.textContent = `✓ Parsed ${nodes} elements (skipped ${skipped} invisible/tiny)`;
+  el.classList.add('show');
+}
+
+function clearAll() {
+  document.getElementById('htmlIn').value = '';
+  document.getElementById('cssIn').value  = '';
+  document.getElementById('stats').classList.remove('show');
+  clearLog();
+}
+
+// ══════════════════════════════════════════ SAMPLE HTML
+function loadSample() {
+  document.getElementById('htmlIn').value = `<!DOCTYPE html>
+<html>
+<head>
+<style>
+  body { font-family: system-ui, sans-serif; background: #f5f5f7; margin: 0; padding: 24px; }
+  .card { background: #fff; border-radius: 12px; padding: 20px; max-width: 320px; box-shadow: 0 2px 12px rgba(0,0,0,.1); }
+  .card-title { font-size: 18px; font-weight: 700; color: #111; margin-bottom: 8px; }
+  .card-text  { font-size: 14px; color: #666; line-height: 1.5; margin-bottom: 16px; }
+  .btn        { display: inline-block; background: #5b6af5; color: #fff; font-size: 14px; font-weight: 600; padding: 8px 18px; border-radius: 7px; border: none; cursor: pointer; }
+  .badge      { display: inline-block; background: #e8ebff; color: #5b6af5; font-size: 12px; font-weight: 600; padding: 3px 9px; border-radius: 20px; margin-bottom: 12px; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <span class="badge">New</span>
+    <div class="card-title">Hello Penpot</div>
+    <div class="card-text">This card was generated automatically from HTML code.</div>
+    <button class="btn">Get started</button>
+  </div>
+</body>
+</html>`;
+  toast('Sample loaded!');
+}
+
+// ══════════════════════════════════════════ PARSE ENGINE
+
+// Tags we completely ignore
+const SKIP_TAGS = new Set([
+  'SCRIPT','STYLE','META','LINK','HEAD','NOSCRIPT',
+  'SVG','PATH','DEFS','SYMBOL','USE','G',
+  'BR','HR','WBR',
+]);
+
+// CSS properties we read from computedStyle
+const STYLE_PROPS = [
+  'backgroundColor','color',
+  'fontSize','fontFamily','fontWeight','lineHeight',
+  'borderRadius',
+  'borderTopWidth','borderRightWidth','borderBottomWidth','borderLeftWidth',
+  'borderTopColor','borderStyle',
+  'opacity','display','visibility',
+  'paddingTop','paddingRight','paddingBottom','paddingLeft',
+  'boxShadow',
+];
+
+function getOptions() {
+  return {
+    width:    parseInt(document.getElementById('optWidth').value)   || 1440,
+    height:   parseInt(document.getElementById('optHeight').value)  || 900,
+    minSize:  parseInt(document.getElementById('optMinSize').value) || 4,
+    maxDepth: parseInt(document.getElementById('optMaxDepth').value)|| 12,
+    incText:   document.getElementById('chkText').classList.contains('on'),
+    incBg:     document.getElementById('chkBg').classList.contains('on'),
+    incBorder: document.getElementById('chkBorder').classList.contains('on'),
+    incHidden: document.getElementById('chkHidden').classList.contains('on'),
+  };
+}
+
+// Build the full HTML string to inject into iframe
+function buildHtml() {
+  let html  = document.getElementById('htmlIn').value.trim();
+  const css = document.getElementById('cssIn').value.trim();
+
+  if (!html) return null;
+
+  // If user pasted only a snippet (no <html> tag), wrap it
+  if (!html.toLowerCase().includes('<html')) {
+    html = `<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body>${html}</body></html>`;
+  }
+
+  // Inject external CSS before </head>
+  if (css) {
+    const styleTag = `<style>\n${css}\n</style>`;
+    html = html.includes('</head>')
+      ? html.replace('</head>', styleTag + '</head>')
+      : html.replace('<body', styleTag + '<body');
+  }
+
+  return html;
+}
+
+// ── Main parse function — runs inside iframe context via srcdoc
+function parseIframe(opts) {
+  return new Promise((resolve, reject) => {
+    const html = buildHtml();
+    if (!html) return reject(new Error('No HTML to parse'));
+
+    const iframe = document.getElementById('renderer');
+    iframe.style.width  = opts.width  + 'px';
+    iframe.style.height = opts.height + 'px';
+
+    // Write HTML into iframe
+    iframe.srcdoc = html;
+
+    iframe.onload = () => {
+      // Small delay to let JS inside the page finish (fonts, dynamic content)
+      setTimeout(() => {
+        try {
+          const doc = iframe.contentDocument;
+          const win = iframe.contentWindow;
+          if (!doc || !win) return reject(new Error('Cannot access iframe document'));
+
+          let nodeCount   = 0;
+          let skipCount   = 0;
+
+          function walkNode(el, depth, parentRect) {
+            if (depth > opts.maxDepth) return null;
+
+            const tag = el.tagName;
+            if (!tag || SKIP_TAGS.has(tag)) return null;
+
+            const rect    = el.getBoundingClientRect();
+            const computed = win.getComputedStyle(el);
+
+            // Skip invisible
+            if (!opts.incHidden) {
+              if (computed.display === 'none')           { skipCount++; return null; }
+              if (computed.visibility === 'hidden')      { skipCount++; return null; }
+              if (parseFloat(computed.opacity) < 0.02)  { skipCount++; return null; }
+            }
+
+            // Skip too small
+            if (rect.width < opts.minSize || rect.height < opts.minSize) {
+              skipCount++;
+              return null;
+            }
+
+            // Skip off-screen (left/above viewport)
+            if (rect.right < 0 || rect.bottom < 0) {
+              skipCount++;
+              return null;
+            }
+
+            // Collect styles
+            const styles = {};
+            STYLE_PROPS.forEach(p => {
+              const v = computed[p];
+              if (v && v !== '' && v !== 'none' && v !== 'normal' && v !== 'auto') {
+                styles[p] = v;
+              }
+            });
+
+            // Direct text content (not from children)
+            let text = '';
+            if (opts.incText) {
+              el.childNodes.forEach(n => {
+                if (n.nodeType === Node.TEXT_NODE) {
+                  const t = n.textContent.trim();
+                  if (t) text += (text ? ' ' : '') + t;
+                }
+              });
+            }
+
+            // Build a useful name for the layer
+            const name = el.id
+              ? '#' + el.id
+              : (el.className && typeof el.className === 'string')
+                ? '.' + el.className.trim().split(/\s+/)[0]
+                : tag.toLowerCase();
+
+            nodeCount++;
+
+            // Recurse
+            const children = [];
+            Array.from(el.children).forEach(child => {
+              const childNode = walkNode(child, depth + 1, {
+                x: rect.x, y: rect.y,
+                width: rect.width, height: rect.height,
+              });
+              if (childNode) children.push(childNode);
+            });
+
+            return {
+              id:         nodeCount,
+              tag,
+              name,
+              text,
+              rect: {
+                x:      Math.round(rect.x),
+                y:      Math.round(rect.y),
+                width:  Math.round(rect.width),
+                height: Math.round(rect.height),
+              },
+              // Parent rect needed for relative positioning in plugin.js
+              parentRect: parentRect || { x: 0, y: 0, width: opts.width, height: opts.height },
+              styles,
+              children,
+            };
+          }
+
+          const body = doc.body;
+          if (!body) return reject(new Error('No <body> found in HTML'));
+
+          // Collect all top-level children of body
+          const roots = [];
+          Array.from(body.children).forEach(child => {
+            const node = walkNode(child, 0, { x: 0, y: 0, width: opts.width, height: opts.height });
+            if (node) roots.push(node);
+          });
+
+          resolve({ roots, nodeCount, skipCount, viewport: { width: opts.width, height: opts.height } });
+
+        } catch (e) {
+          reject(e);
+        }
+      }, 600);
+    };
+
+    iframe.onerror = () => reject(new Error('iframe failed to load'));
+  });
+}
+
+// ══════════════════════════════════════════ PREVIEW
+async function previewParse() {
+  clearLog();
+  document.getElementById('stats').classList.remove('show');
+
+  const opts = getOptions();
+  log('Parsing HTML…');
+
+  try {
+    const { roots, nodeCount, skipCount } = await parseIframe(opts);
+    showStats(nodeCount, skipCount);
+    log('Top-level elements: ' + roots.length);
+    roots.forEach(r => {
+      log(`  ${r.name}  ${r.rect.width}×${r.rect.height}  (${r.children.length} children)`);
+    });
+    log('Ready to generate!');
+  } catch (e) {
+    log('✗ Error: ' + e.message);
+    toast('Parse error: ' + e.message, '#e86060');
+  }
+}
+
+// ══════════════════════════════════════════ GENERATE
+async function generate() {
+  clearLog();
+  document.getElementById('stats').classList.remove('show');
+
+  const opts   = getOptions();
+  const genBtn = document.getElementById('genBtn');
+
+  if (!document.getElementById('htmlIn').value.trim()) {
+    return toast('Paste some HTML first', '#e86060');
+  }
+
+  genBtn.disabled    = true;
+  genBtn.textContent = 'Parsing…';
+  log('Parsing HTML…');
+
+  try {
+    const { roots, nodeCount, skipCount, viewport } = await parseIframe(opts);
+    showStats(nodeCount, skipCount);
+    log(`Sending ${nodeCount} elements to Penpot…`);
+
+    genBtn.textContent = 'Generating…';
+
+    parent.postMessage({
+      type:     'CREATE_FRAMES',
+      nodes:    roots,
+      viewport,
+    }, '*');
+
+  } catch (e) {
+    genBtn.disabled    = false;
+    genBtn.textContent = 'Generate in Penpot';
+    log('✗ Error: ' + e.message);
+    toast('Error: ' + e.message, '#e86060');
+  }
+}
+
+// ── Response from plugin.js
+window.addEventListener('message', event => {
+  const btn = document.getElementById('genBtn');
+  if (event.data.type === 'DONE') {
+    btn.disabled    = false;
+    btn.textContent = 'Generate in Penpot';
+    log(`✓ Created ${event.data.count} frames in Penpot!`);
+    toast(`✓ ${event.data.count} frames created!`);
+  }
+  if (event.data.type === 'ERROR') {
+    btn.disabled    = false;
+    btn.textContent = 'Generate in Penpot';
+    log('✗ Penpot error: ' + event.data.message);
+    toast('Penpot error', '#e86060');
+  }
+});
+
+// ── Init: read theme from URL
+(function init() {
+  const theme = new URLSearchParams(location.search).get('theme') || 'system';
+  document.body.setAttribute('data-theme', theme);
+})();
+</script>
+</body>
+</html>

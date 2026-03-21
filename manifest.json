@@ -1,0 +1,13 @@
+{
+  "name": "HTML to Penpot",
+  "description": "Paste HTML (and optional CSS) to generate Penpot frames automatically",
+  "version": "1.0.0",
+  "manifest_version": 1,
+  "engine": "0.1",
+  "ui": "index.html",
+  "code": "plugin.js",
+  "permissions": [
+    "content:read",
+    "content:write"
+  ]
+}
