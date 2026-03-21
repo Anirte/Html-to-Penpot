@@ -147,25 +147,40 @@ function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlB
         const dir = node.styles.flexDirection || 'row';
         flex.dir = dir.includes('column') ? 'column' : 'row';
 
-        // nowrap keeps children inside the container
-        // wrap only if CSS explicitly says wrap
+        // wrap: only when CSS explicitly says wrap, otherwise keep nowrap
         const cssWrap = node.styles.flexWrap || '';
-        flex.wrap = cssWrap === 'wrap' || cssWrap === 'wrap-reverse' ? 'wrap' : 'nowrap';
+        flex.wrap = (cssWrap === 'wrap' || cssWrap === 'wrap-reverse') ? 'wrap' : 'nowrap';
 
-        // Align items — map CSS values to Penpot values
-        const ai = node.styles.alignItems || 'flex-start';
-        flex.alignItems = ai === 'center'     ? 'center'
-                        : ai === 'flex-end'   ? 'end'
-                        : ai === 'stretch'    ? 'stretch'
-                        : 'start'; // flex-start and default → start
+        // alignContent — only relevant when wrap is on
+        if (flex.wrap === 'wrap') {
+          const ac = node.styles.alignContent || '';
+          flex.alignContent = ac === 'center'        ? 'center'
+                            : ac === 'flex-end'      ? 'end'
+                            : ac === 'space-between' ? 'space-between'
+                            : ac === 'space-around'  ? 'space-around'
+                            : ac === 'space-evenly'  ? 'space-evenly'
+                            : ac === 'stretch'       ? 'stretch'
+                            : 'start';
+        }
 
-        // Justify content
+        // alignItems — for non-flex containers with padding, center the content
+        const ai = node.styles.alignItems || '';
+        const isFlex = node.styles.display === 'flex' || node.styles.display === 'inline-flex';
+        flex.alignItems = ai === 'center'      ? 'center'
+                        : ai === 'flex-end'    ? 'end'
+                        : ai === 'stretch'     ? 'stretch'
+                        : isFlex ? 'start'
+                        : 'center'; // non-flex with padding → center content
+
+        // justifyContent
         const jc = node.styles.justifyContent || '';
         flex.justifyContent = jc === 'center'        ? 'center'
                             : jc === 'flex-end'      ? 'end'
                             : jc === 'space-between' ? 'space-between'
                             : jc === 'space-around'  ? 'space-around'
-                            : 'start';
+                            : jc === 'space-evenly'  ? 'space-evenly'
+                            : isFlex ? 'start'
+                            : 'center'; // non-flex with padding → center content
 
         // Padding
         flex.topPadding    = pt;
