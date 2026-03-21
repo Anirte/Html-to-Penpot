@@ -336,10 +336,10 @@ function parseIframe(opts) {
 
             // bounds are relative to rootRect (body top-left)
             const bounds = {
-              x:      Math.round(rect.left - rootRect.left),
-              y:      Math.round(rect.top  - rootRect.top),
-              width:  Math.round(rect.width),
-              height: Math.round(rect.height),
+              x:      Math.floor(rect.left - rootRect.left),
+              y:      Math.floor(rect.top  - rootRect.top),
+              width:  Math.ceil(rect.width),
+              height: Math.ceil(rect.height),
             };
 
             // Recurse only for containers
