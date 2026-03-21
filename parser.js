@@ -318,24 +318,6 @@ function parseIframe(opts) {
               }
               if (v !== 'normal' && v !== 'auto') styles[p] = v;
             });
-            // Remove flex props from non-flex elements — getComputedStyle
-            // returns flex defaults (e.g. flexDirection:row) even for block elements
-            const disp = computed.display;
-            if (disp !== 'flex' && disp !== 'inline-flex' && disp !== 'grid' && disp !== 'inline-grid') {
-              delete styles.flexDirection;
-              delete styles.flexWrap;
-              delete styles.alignItems;
-              delete styles.justifyContent;
-              delete styles.gap;
-              delete styles.rowGap;
-              delete styles.columnGap;
-            }
-            // Always collect grid-specific props — needed for correct layout detection
-            ['gridTemplateColumns','gridTemplateRows','gridAutoFlow'].forEach(p => {
-              const v = computed[p];
-              if (v) styles[p] = v;
-            });
-
             // Get visible direct children
             const visibleChildren = Array.from(el.children).filter(child => {
               if (SKIP_TAGS.has(child.tagName)) return false;
@@ -345,9 +327,8 @@ function parseIframe(opts) {
               return cr.width >= opts.minSize && cr.height >= opts.minSize;
             });
 
-            // Always collect alignment for flex/grid elements
-            // but NOT for block elements — UA stylesheet returns flex defaults
-            // even for display:block which causes wrong layout in Penpot
+            // For non-flex/grid elements remove flex props —
+            // getComputedStyle returns flex defaults even for display:block
             const disp = computed.display;
             const isFlex = disp === 'flex' || disp === 'inline-flex';
             const isGrid = disp === 'grid' || disp === 'inline-grid';
@@ -356,7 +337,6 @@ function parseIframe(opts) {
                 const v = computed[p];
                 if (v) styles[p] = v;
               });
-              // Remove flex props collected above for non-flex elements
             } else {
               delete styles.flexDirection;
               delete styles.flexWrap;
