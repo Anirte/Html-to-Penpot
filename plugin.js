@@ -22,13 +22,12 @@ penpot.ui.onMessage(async (message) => {
       // width/height — MUST use resize(), they are readonly properties
       board.resize(Math.max(1, node.rect.width), Math.max(1, node.rect.height));
 
-      // x, y — writable directly
+      // x, y — always relative to parent rect
       if (!parentBoard) {
-        // Root node: offset to canvas position
         board.x = OFFSET_X + node.rect.x;
         board.y = OFFSET_Y + node.rect.y;
       } else {
-        // Child node: position relative to parent
+        // Subtract parent's absolute position to get relative coords
         board.x = node.rect.x - node.parentRect.x;
         board.y = node.rect.y - node.parentRect.y;
       }

@@ -456,13 +456,10 @@ function parseIframe(opts) {
 
             nodeCount++;
 
-            // Recurse
+            // Recurse — pass this element's viewport rect as parentRect for children
             const children = [];
             Array.from(el.children).forEach(child => {
-              const childNode = walkNode(child, depth + 1, {
-                x: rect.x, y: rect.y,
-                width: rect.width, height: rect.height,
-              });
+              const childNode = walkNode(child, depth + 1, rect);
               if (childNode) children.push(childNode);
             });
 
@@ -477,8 +474,13 @@ function parseIframe(opts) {
                 width:  Math.round(rect.width),
                 height: Math.round(rect.height),
               },
-              // Parent rect needed for relative positioning in plugin.js
-              parentRect: parentRect || { x: 0, y: 0, width: opts.width, height: opts.height },
+              // Store absolute parent position so plugin.js can compute relative coords
+              parentRect: {
+                x:      Math.round(parentRect.x),
+                y:      Math.round(parentRect.y),
+                width:  Math.round(parentRect.width),
+                height: Math.round(parentRect.height),
+              },
               styles,
               children,
             };
