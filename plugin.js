@@ -143,13 +143,15 @@ function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlB
       );
     });
 
-    // If container also has direct text, add it as a text layer on top
+    // If container also has direct text, add it with padding offset
     if (node.text && node.text.trim()) {
       const txt = penpot.createText(node.text.trim());
       if (txt) {
+        const pt = parseFloat(node.styles.paddingTop)   || 0;
+        const pl = parseFloat(node.styles.paddingLeft)  || 0;
         txt.name       = node.name + ' text';
-        txt.x          = absX;
-        txt.y          = absY;
+        txt.x          = absX + pl;
+        txt.y          = absY + pt;
         txt.growType   = 'auto-width';
         txt.fontFamily = 'Inter';
         txt.fontSize   = String(Math.round(parseFloat(node.styles.fontSize) || 14));
@@ -175,17 +177,39 @@ function applyBorderRadius(shape, styles) {
 function applyShadow(shape, styles) {
   const bs = styles.boxShadow;
   if (!bs || bs === 'none') return;
-  // Parse "2px 12px 20px rgba(0,0,0,0.1)" — simple single shadow
-  const m = bs.match(/(-?[\d.]+)px\s+(-?[\d.]+)px\s+(-?[\d.]+)px(?:\s+(-?[\d.]+)px)?\s+(rgba?\([^)]+\)|#[0-9a-f]+)/i);
-  if (!m) return;
-  const color = parseCssColor(m[5]);
+  // boxShadow format: "Xpx Ypx Blur Spread Color" or "Xpx Ypx Blur Color"
+  // Color can be rgb/rgba and comes FIRST or LAST depending on browser
+  // Chrome: "rgba(0, 0, 0, 0.1) 0px 2px 12px 0px"
+  const colorFirst = bs.match(/^(rgba?\([^)]+\)|#[0-9a-f]+)\s+(-?[\d.]+)px\s+(-?[\d.]+)px\s+(-?[\d.]+)px(?:\s+(-?[\d.]+)px)?/i);
+  const colorLast  = bs.match(/(-?[\d.]+)px\s+(-?[\d.]+)px\s+(-?[\d.]+)px(?:\s+(-?[\d.]+)px)?\s+(rgba?\([^)]+\)|#[0-9a-f]+)/i);
+
+  let offsetX, offsetY, blur, spread, colorStr;
+
+  if (colorFirst) {
+    colorStr = colorFirst[1];
+    offsetX  = parseFloat(colorFirst[2]);
+    offsetY  = parseFloat(colorFirst[3]);
+    blur     = parseFloat(colorFirst[4]);
+    spread   = parseFloat(colorFirst[5] || '0');
+  } else if (colorLast) {
+    offsetX  = parseFloat(colorLast[1]);
+    offsetY  = parseFloat(colorLast[2]);
+    blur     = parseFloat(colorLast[3]);
+    spread   = parseFloat(colorLast[4] || '0');
+    colorStr = colorLast[5];
+  } else {
+    return;
+  }
+
+  const color = parseCssColor(colorStr);
   if (!color) return;
+
   shape.shadows = [{
     style:   'drop-shadow',
-    offsetX: parseFloat(m[1]),
-    offsetY: parseFloat(m[2]),
-    blur:    parseFloat(m[3]),
-    spread:  parseFloat(m[4] || '0'),
+    offsetX,
+    offsetY,
+    blur,
+    spread,
     color:   { color: color.fillColor, opacity: color.fillOpacity },
     hidden:  false,
   }];
