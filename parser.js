@@ -451,6 +451,7 @@ function copyMarginFix() {
 // Paste in browser console (F12) — no need to select anything first
 (function() {
   let clicked = 0;
+  let skipped = 0;
   const layers = document.querySelectorAll('[class*="layer_item__element-list-body"]');
   const total = layers.length;
 
@@ -463,7 +464,7 @@ function copyMarginFix() {
   let lastCount = 0;
   let stableMs  = 0;
   const CHECK_INTERVAL = 200;
-  const STABLE_NEEDED  = 600; // ms without change = ready
+  const STABLE_NEEDED  = 600;
 
   function waitForIdle(cb) {
     const t = setInterval(() => {
@@ -482,29 +483,43 @@ function copyMarginFix() {
   console.log('Waiting for Penpot to be ready...');
   waitForIdle(() => {
     const readyLayers = document.querySelectorAll('[class*="layer_item__element-list-body"]');
-    console.log('Ready! Fixing ' + readyLayers.length + ' elements...');
+    console.log('Ready! Processing ' + readyLayers.length + ' elements...');
 
     let i = 0;
     function fixNext() {
       if (i >= readyLayers.length) {
-        console.log('Done! Fixed ' + clicked + ' elements');
+        console.log('Done! Fixed ' + clicked + ' elements, skipped ' + skipped + ' (zero margins)');
         return;
       }
-      // Progress every 50 elements
-      if (i % 50 === 0) console.log('Progress: ' + i + '/' + readyLayers.length);
+      if (i % 100 === 0) console.log('Progress: ' + i + '/' + readyLayers.length);
 
       readyLayers[i].click();
       i++;
       setTimeout(() => {
-        document.querySelectorAll('button').forEach(btn => {
-          const use = btn.querySelector('use');
-          const href = use && (use.getAttribute('href') || use.getAttribute('xlink:href'));
-          if (href === '#icon-margin') {
-            btn.click();
-            clicked++;
-          }
+        // Only click margin button if element has non-zero margins
+        // Uses Penpot 2.14 layout_item input class
+        const marginInputs = Array.from(
+          document.querySelectorAll('[class*="layout_item__numeric-input"]')
+        );
+        const hasNonZeroMargin = marginInputs.some(inp => {
+          const v = parseFloat(inp.value);
+          return !isNaN(v) && v !== 0;
         });
-        setTimeout(fixNext, 80); // 80ms instead of 150ms — twice as fast
+
+        if (hasNonZeroMargin) {
+          document.querySelectorAll('button').forEach(btn => {
+            const use = btn.querySelector('use');
+            const href = use && (use.getAttribute('href') || use.getAttribute('xlink:href'));
+            if (href === '#icon-margin') {
+              btn.click();
+              clicked++;
+            }
+          });
+        } else {
+          skipped++;
+        }
+
+        setTimeout(fixNext, 80);
       }, 80);
     }
     fixNext();
