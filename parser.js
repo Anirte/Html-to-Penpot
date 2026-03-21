@@ -311,9 +311,12 @@ function parseIframe(opts) {
             const styles = {};
             STYLE_PROPS.forEach(p => {
               const v = computed[p];
-              if (v && v !== '' && v !== 'none' && v !== 'normal' && v !== 'auto') {
-                styles[p] = v;
+              if (!v || v === '' || v === 'none') return;
+              if (p === 'lineHeight' && v === 'normal') {
+                styles[p] = '1.2';
+                return;
               }
+              if (v !== 'normal' && v !== 'auto') styles[p] = v;
             });
             // Remove flex props from non-flex elements — getComputedStyle
             // returns flex defaults (e.g. flexDirection:row) even for block elements

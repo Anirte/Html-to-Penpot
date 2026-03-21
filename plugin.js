@@ -94,6 +94,8 @@ function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlB
         txt.fontFamily = resolveFont(node.styles.fontFamily);
         txt.fontSize   = String(Math.round(parseFloat(node.styles.fontSize) || 14));
         txt.fontWeight = safeWeight(node.styles.fontWeight);
+        const lh = parseFloat(node.styles.lineHeight);
+        if (!isNaN(lh) && lh > 0) txt.lineHeight = lh;
         const tc = parseCssColor(node.styles.color);
         if (tc) txt.fills = [tc];
         parentBoard.appendChild(txt);
@@ -370,6 +372,8 @@ function addTextChild(node, board, absX, absY) {
   txt.fontFamily = resolveFont(node.styles.fontFamily);
   txt.fontSize   = String(Math.round(parseFloat(node.styles.fontSize) || 14));
   txt.fontWeight = safeWeight(node.styles.fontWeight);
+  const lh2 = parseFloat(node.styles.lineHeight);
+  if (!isNaN(lh2) && lh2 > 0) txt.lineHeight = lh2;
   const tc = parseCssColor(node.styles.color);
   if (tc) txt.fills = [tc];
   board.appendChild(txt);
