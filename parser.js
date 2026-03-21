@@ -344,7 +344,6 @@ function parseIframe(opts) {
             // Always collect alignment for flex/grid elements
             // but NOT for block elements — UA stylesheet returns flex defaults
             // even for display:block which causes wrong layout in Penpot
-            const disp = computed.display;
             const isFlex = disp === 'flex' || disp === 'inline-flex';
             const isGrid = disp === 'grid' || disp === 'inline-grid';
             if (isFlex || isGrid) {
