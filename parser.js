@@ -453,7 +453,7 @@ function copyMarginFix() {
   let clicked = 0;
 
   // Click each layer item and fix its margin button
-  const layers = document.querySelectorAll('[class*="layer-name"], [class*="element-list-body"]');
+  const layers = document.querySelectorAll('[class*="layer_item__element-list-body"]');
 
   let i = 0;
   function fixNext() {
