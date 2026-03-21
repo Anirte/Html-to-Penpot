@@ -127,7 +127,7 @@ function getOptions() {
   return {
     width:     parseInt(document.getElementById('optWidth').value)    || 1440,
     height:    parseInt(document.getElementById('optHeight').value)   || 900,
-    minSize:   parseInt(document.getElementById('optMinSize').value)  || 4,
+    minSize:   1,
     maxDepth:  parseInt(document.getElementById('optMaxDepth').value) || 8,
     incText:   document.getElementById('chkText').classList.contains('on'),
     incHidden: document.getElementById('chkHidden').classList.contains('on'),
@@ -253,17 +253,23 @@ function parseIframe(opts) {
           const body = doc.body;
           if (!body) return reject(new Error('No <body> in HTML'));
 
-          // Remove overflow hidden so all content is visible for parsing
+          // Remove overflow only on elements that clip the full page layout
+          // (body, elements with 100vh height) — NOT on regular cards/components
           body.style.overflow = 'visible';
           body.style.height   = 'auto';
           doc.querySelectorAll('*').forEach(el => {
             const cs = win.getComputedStyle(el);
-            if (cs.overflow === 'hidden' || cs.overflow === 'scroll') {
-              el.style.overflow = 'visible';
-            }
-            if (cs.height === '100vh' || cs.maxHeight === '100vh') {
+            const h  = cs.height;
+            const mh = cs.maxHeight;
+            const isFullHeight = h === '100vh' || mh === '100vh'
+                                || h === window.innerHeight + 'px'
+                                || mh === window.innerHeight + 'px';
+            if (isFullHeight) {
               el.style.height    = 'auto';
               el.style.maxHeight = 'none';
+              if (cs.overflow === 'hidden' || cs.overflow === 'scroll') {
+                el.style.overflow = 'visible';
+              }
             }
           });
 
