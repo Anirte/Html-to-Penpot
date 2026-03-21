@@ -128,37 +128,54 @@ function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlB
 
     board.clipContent = node.styles.overflow === 'hidden';
 
-    // Apply flex layout if element uses flexbox
-    if (node.styles.display === 'flex' || node.styles.display === 'inline-flex') {
+    // Apply flex layout if element has padding OR uses flexbox
+    // This ensures text and children respect padding offsets
+    const pt = parseFloat(node.styles.paddingTop)    || 0;
+    const pr = parseFloat(node.styles.paddingRight)  || 0;
+    const pb = parseFloat(node.styles.paddingBottom) || 0;
+    const pl = parseFloat(node.styles.paddingLeft)   || 0;
+    const isFlex = node.styles.display === 'flex' || node.styles.display === 'inline-flex';
+    const hasPadding = pt > 0 || pr > 0 || pb > 0 || pl > 0;
+
+    if (isFlex || hasPadding) {
       try {
         board.horizontalSizing = 'fix';
         board.verticalSizing   = 'fix';
         const flex = board.addFlexLayout();
-        // Map CSS flex-direction → Penpot dir
+
+        // Direction — column if flex-direction says so, otherwise row
         const dir = node.styles.flexDirection || 'row';
         flex.dir = dir.includes('column') ? 'column' : 'row';
-        // Map CSS align-items
-        const ai = node.styles.alignItems || 'stretch';
-        flex.alignItems = ai === 'center' ? 'center'
-                        : ai === 'flex-end' ? 'end'
-                        : ai === 'flex-start' ? 'start'
-                        : 'stretch';
-        // Map CSS justify-content
-        const jc = node.styles.justifyContent || 'flex-start';
-        flex.justifyContent = jc === 'center' ? 'center'
-                            : jc === 'flex-end' ? 'end'
+
+        // Wrap
+        flex.wrap = node.styles.flexWrap === 'wrap' ? 'wrap' : 'nowrap';
+
+        // Align items
+        const ai = node.styles.alignItems || '';
+        flex.alignItems = ai === 'center'    ? 'center'
+                        : ai === 'flex-end'  ? 'end'
+                        : ai === 'flex-start'? 'start'
+                        : 'start';
+
+        // Justify content
+        const jc = node.styles.justifyContent || '';
+        flex.justifyContent = jc === 'center'        ? 'center'
+                            : jc === 'flex-end'      ? 'end'
                             : jc === 'space-between' ? 'space-between'
-                            : jc === 'space-around' ? 'space-around'
+                            : jc === 'space-around'  ? 'space-around'
                             : 'start';
+
         // Padding
-        flex.topPadding    = parseFloat(node.styles.paddingTop)    || 0;
-        flex.rightPadding  = parseFloat(node.styles.paddingRight)  || 0;
-        flex.bottomPadding = parseFloat(node.styles.paddingBottom) || 0;
-        flex.leftPadding   = parseFloat(node.styles.paddingLeft)   || 0;
+        flex.topPadding    = pt;
+        flex.rightPadding  = pr;
+        flex.bottomPadding = pb;
+        flex.leftPadding   = pl;
+
         // Gap
         flex.rowGap    = parseFloat(node.styles.rowGap)    || parseFloat(node.styles.gap) || 0;
         flex.columnGap = parseFloat(node.styles.columnGap) || parseFloat(node.styles.gap) || 0;
-      } catch (e) { /* skip if flex layout fails */ }
+
+      } catch (e) { /* skip if layout fails */ }
     }
 
     // Append to parent BEFORE recursing into children
@@ -180,11 +197,9 @@ function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlB
     if (node.text && node.text.trim()) {
       const txt = penpot.createText(node.text.trim());
       if (txt) {
-        const pt = parseFloat(node.styles.paddingTop)   || 0;
-        const pl = parseFloat(node.styles.paddingLeft)  || 0;
         txt.name       = node.name + ' text';
-        txt.x          = absX + pl;
-        txt.y          = absY + pt;
+        txt.x          = absX;
+        txt.y          = absY;
         txt.growType   = 'auto-width';
         txt.fontFamily = 'Inter';
         txt.fontSize   = String(Math.round(parseFloat(node.styles.fontSize) || 14));
