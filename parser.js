@@ -378,25 +378,24 @@ window.addEventListener('message', event => {
 // ── Margin fix script — paste in browser console after generation
 function copyMarginFix() {
   const script = `
-// Penpot margin-multiple fix — paste in browser console (F12)
-// Finds all "Margin - multiple" buttons and clicks them
+// Penpot margin-multiple fix
+// Select all elements first (Ctrl+A on canvas), then paste this in console (F12)
 (function() {
+  // Button class contains "margin-mode" — this toggles to individual margins
+  const buttons = document.querySelectorAll('button[class*="margin-mode"]');
   let clicked = 0;
-  // Find by title/aria-label attribute
-  const byTitle = document.querySelectorAll('[title="Margin - multiple"], [aria-label="Margin - multiple"]');
-  byTitle.forEach(btn => { btn.click(); clicked++; });
-
-  // Fallback: find by tooltip text content
+  buttons.forEach(btn => {
+    // Only click if currently in simple mode (showing icon-margin, not icon-margin-top-bottom)
+    const use = btn.querySelector('use');
+    const href = use && (use.getAttribute('href') || use.getAttribute('xlink:href'));
+    if (href === '#icon-margin') {
+      btn.click();
+      clicked++;
+    }
+  });
+  console.log('Fixed ' + clicked + ' elements');
   if (clicked === 0) {
-    document.querySelectorAll('button, span, div').forEach(el => {
-      if (el.title === 'Margin - multiple' || el.getAttribute('aria-label') === 'Margin - multiple') {
-        el.click(); clicked++;
-      }
-    });
-  }
-  console.log('Clicked ' + clicked + ' margin buttons');
-  if (clicked === 0) {
-    console.warn('No buttons found — select all elements first (Ctrl+A), then run again');
+    console.warn('Nothing to fix — either already expanded or no elements selected');
   }
 })();
 `.trim();
