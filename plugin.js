@@ -76,7 +76,7 @@ function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlB
         txt.name       = node.name;
         txt.x          = absX;
         txt.y          = absY;
-        txt.growType   = 'fixed';
+        txt.growType   = 'auto-height';
         txt.resize(w, h);
         txt.fontFamily = 'Inter';
         txt.fontSize   = String(Math.round(parseFloat(node.styles.fontSize) || 14));
@@ -174,8 +174,7 @@ function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlB
         txt.name       = node.name + ' text';
         txt.x          = absX;
         txt.y          = absY;
-        txt.growType   = 'fixed';
-        txt.resize(w, h);
+        txt.growType   = 'auto-width';
         txt.fontFamily = 'Inter';
         txt.fontSize   = String(Math.round(parseFloat(node.styles.fontSize) || 14));
         txt.fontWeight = safeWeight(node.styles.fontWeight);

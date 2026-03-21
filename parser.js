@@ -379,24 +379,34 @@ window.addEventListener('message', event => {
 function copyMarginFix() {
   const script = `
 // Penpot margin-multiple fix
-// Select all elements first (Ctrl+A on canvas), then paste this in console (F12)
+// Paste in browser console (F12) — no need to select anything first
 (function() {
-  // Button class contains "margin-mode" — this toggles to individual margins
-  const buttons = document.querySelectorAll('button[class*="margin-mode"]');
   let clicked = 0;
-  buttons.forEach(btn => {
-    // Only click if currently in simple mode (showing icon-margin, not icon-margin-top-bottom)
-    const use = btn.querySelector('use');
-    const href = use && (use.getAttribute('href') || use.getAttribute('xlink:href'));
-    if (href === '#icon-margin') {
-      btn.click();
-      clicked++;
+
+  // Click each layer item and fix its margin button
+  const layers = document.querySelectorAll('[class*="layer-name"], [class*="element-list-body"]');
+
+  let i = 0;
+  function fixNext() {
+    if (i >= layers.length) {
+      console.log('Done! Fixed ' + clicked + ' elements');
+      return;
     }
-  });
-  console.log('Fixed ' + clicked + ' elements');
-  if (clicked === 0) {
-    console.warn('Nothing to fix — either already expanded or no elements selected');
+    layers[i].click();
+    i++;
+    setTimeout(() => {
+      document.querySelectorAll('button').forEach(btn => {
+        const use = btn.querySelector('use');
+        const href = use && (use.getAttribute('href') || use.getAttribute('xlink:href'));
+        if (href === '#icon-margin') {
+          btn.click();
+          clicked++;
+        }
+      });
+      setTimeout(fixNext, 150);
+    }, 150);
   }
+  fixNext();
 })();
 `.trim();
   navigator.clipboard.writeText(script).then(() => {
