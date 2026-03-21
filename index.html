@@ -407,6 +407,9 @@ function parseIframe(opts) {
 
             const rect    = el.getBoundingClientRect();
             const computed = win.getComputedStyle(el);
+            // Compute position relative to parent element directly
+            const relX = el.offsetLeft || 0;
+            const relY = el.offsetTop  || 0;
 
             // Skip invisible
             if (!opts.incHidden) {
@@ -468,13 +471,15 @@ function parseIframe(opts) {
               tag,
               name,
               text,
+              // relX/relY = position relative to offsetParent (what Penpot needs)
               rect: {
                 x:      Math.round(rect.x),
                 y:      Math.round(rect.y),
                 width:  Math.round(rect.width),
                 height: Math.round(rect.height),
+                relX:   Math.round(relX),
+                relY:   Math.round(relY),
               },
-              // Store absolute parent position so plugin.js can compute relative coords
               parentRect: {
                 x:      Math.round(parentRect.x),
                 y:      Math.round(parentRect.y),
