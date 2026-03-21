@@ -41,14 +41,15 @@ penpot.ui.onMessage(async (message) => {
     // Single root board wrapping everything
     const rootBoard = penpot.createBoard();
     rootBoard.name = 'HTML Import';
-    rootBoard.resize(totalW, totalH);
+    const PADDING = 40; // extra space around content
+    rootBoard.resize(totalW + PADDING * 2, totalH + PADDING * 2);
     rootBoard.x = center.x - totalW / 2;
     rootBoard.y = center.y - totalH / 2;
-    rootBoard.fills = [{ fillColor: '#ffffff', fillOpacity: 1 }];
+    rootBoard.fills = []; // transparent background
 
     let totalCreated = 0;
     for (const node of nodes) {
-      buildNode(node, rootBoard, rootBoard.x, rootBoard.y, minX, minY);
+      buildNode(node, rootBoard, rootBoard.x + PADDING, rootBoard.y + PADDING, minX, minY);
       totalCreated++;
     }
 
