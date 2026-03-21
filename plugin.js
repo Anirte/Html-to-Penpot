@@ -24,11 +24,11 @@ penpot.ui.onMessage(async (message) => {
 
       // x, y — always relative to parent rect
       if (!parentBoard) {
-        // Root elements — use absolute viewport position + canvas offset
-        board.x = OFFSET_X + node.rect.x;
-        board.y = OFFSET_Y + node.rect.y;
+        // Root elements — position relative to body + canvas offset
+        board.x = OFFSET_X + node.rect.relX;
+        board.y = OFFSET_Y + node.rect.relY;
       } else {
-        // Children — use offsetLeft/offsetTop (position relative to parent)
+        // Children — position relative to direct parent
         board.x = node.rect.relX;
         board.y = node.rect.relY;
       }

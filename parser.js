@@ -265,10 +265,18 @@ function parseIframe(opts) {
           const body = doc.body;
           if (!body) return reject(new Error('No <body> found in HTML'));
 
+          // Use body's rect as the coordinate origin for all root elements
+          const bodyRect = body.getBoundingClientRect();
+
           const roots = [];
           Array.from(body.children).forEach(child => {
             const node = walkNode(child, 0);
-            if (node) roots.push(node);
+            if (node) {
+              // Adjust root elements relative to body origin
+              node.rect.relX = node.rect.x - bodyRect.x;
+              node.rect.relY = node.rect.y - bodyRect.y;
+              roots.push(node);
+            }
           });
 
           resolve({ roots, nodeCount, skipCount, viewport: { width: opts.width, height: opts.height } });
