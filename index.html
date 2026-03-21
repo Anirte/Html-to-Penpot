@@ -112,6 +112,7 @@ textarea.code-in::placeholder{color:var(--t3)}
 <div class="tabs">
   <button class="tab on" onclick="switchTab('html',this)">HTML</button>
   <button class="tab"    onclick="switchTab('css',this)">CSS</button>
+  <button class="tab"    onclick="switchTab('js',this)">JS</button>
   <button class="tab"    onclick="switchTab('opts',this)">Options</button>
 </div>
 
@@ -159,8 +160,25 @@ This CSS will be injected into the HTML before rendering.
 If your HTML already has &lt;style&gt; tags inside, you don't need this tab."></textarea>
   </div>
 
-  <!-- ── Options tab -->
-  <div id="tab-opts" style="display:none">
+  <!-- ── JS tab -->
+    <div id="tab-js" style="display:none">
+        <div class="sec-label">
+        JavaScript files
+        <span>optional — external scripts your HTML depends on</span>
+        </div>
+        <div id="jsList" style="display:flex;flex-direction:column;gap:5px;margin-bottom:8px"></div>
+        <label class="btn" style="font-size:12px;padding:5px 10px;cursor:pointer;width:100%;justify-content:center">
+        + Upload JS file
+        <input type="file" accept=".js" multiple onchange="loadJsFiles(event)" style="display:none">
+        </label>
+        <div style="margin-top:6px;font-size:12px;color:var(--t3);line-height:1.6">
+        Upload the JS files that your HTML references via &lt;script src="..."&gt;.<br>
+        They will be inlined into the HTML before rendering.
+        </div>
+    </div>
+
+    <!-- ── Options tab -->
+    <div id="tab-opts" style="display:none">
     <div class="sec-label" style="margin-bottom:10px">Rendering</div>
 
     <div style="display:flex;flex-direction:column;gap:10px">

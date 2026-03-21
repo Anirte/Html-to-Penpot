@@ -1,6 +1,6 @@
 // ══════════════════════════════════════════ TABS
 function switchTab(name, btn) {
-  ['html','css','opts'].forEach(t => {
+  ['html','css','js','opts'].forEach(t => {
     document.getElementById('tab-' + t).style.display = t === name ? '' : 'none';
   });
   document.querySelectorAll('.tab').forEach(b => b.classList.toggle('on', b === btn));
@@ -138,15 +138,63 @@ function buildHtml() {
   let html  = document.getElementById('htmlIn').value.trim();
   const css = document.getElementById('cssIn').value.trim();
   if (!html) return null;
+
+  // Extract base URL from any <script src> or <link href> in the HTML
+  // so that relative paths load correctly inside srcdoc iframe
+  let baseUrl = '';
+  const srcMatch = html.match(/src=["']([^"']+\/)[^"']*["']/);
+  const hrefMatch = html.match(/href=["']([^"']+\/)[^"']*\.css["']/);
+  if (srcMatch)  baseUrl = srcMatch[1];
+  if (hrefMatch) baseUrl = hrefMatch[1];
+  // Try to get root (remove last path segment)
+  if (baseUrl) {
+    try {
+      const u = new URL(baseUrl, location.href);
+      // Go up to root of the site
+      baseUrl = u.origin + u.pathname.replace(/\/[^\/]*$/, '/');
+    } catch(e) { baseUrl = ''; }
+  }
+
   if (!html.toLowerCase().includes('<html')) {
     html = `<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body>${html}</body></html>`;
   }
+
+  // Inject <base> tag so relative URLs resolve correctly in srcdoc
+  if (baseUrl) {
+    const baseTag = `<base href="${baseUrl}">`;
+    html = html.includes('</head>')
+      ? html.replace('</head>', baseTag + '</head>')
+      : html.replace('<body', baseTag + '<body');
+  }
+
   if (css) {
     const styleTag = `<style>\n${css}\n</style>`;
     html = html.includes('</head>')
       ? html.replace('</head>', styleTag + '</head>')
       : html.replace('<body', styleTag + '<body');
   }
+
+  // Inline uploaded JS files — replace matching <script src> tags
+  // If no matching tag found, append before </body>
+  if (loadedScripts.length) {
+    loadedScripts.forEach(script => {
+      const inlineTag = `<script>\n${script.content}\n<\/script>`;
+      // Match <script src="...filename..."> case-insensitively
+      const srcRegex = new RegExp(
+        `<script[^>]+src=["'][^"']*${script.name.replace('.', '\\.')}["'][^>]*>\\s*<\/script>`,
+        'gi'
+      );
+      if (srcRegex.test(html)) {
+        html = html.replace(srcRegex, inlineTag);
+      } else {
+        // Script not referenced — append before </body>
+        html = html.includes('</body>')
+          ? html.replace('</body>', inlineTag + '\n</body>')
+          : html + inlineTag;
+      }
+    });
+  }
+
   return html;
 }
 
@@ -451,6 +499,45 @@ function applyPreset(value) {
   if (!p) return;
   document.getElementById('optWidth').value  = p.w;
   document.getElementById('optHeight').value = p.h;
+}
+
+// ── JS file storage
+let loadedScripts = []; // [{ name, content }]
+
+function loadJsFiles(event) {
+  const files = Array.from(event.target.files);
+  if (!files.length) return;
+  let loaded = 0;
+  files.forEach(file => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      // Remove duplicates by name
+      loadedScripts = loadedScripts.filter(s => s.name !== file.name);
+      loadedScripts.push({ name: file.name, content: e.target.result });
+      loaded++;
+      if (loaded === files.length) {
+        renderJsList();
+        toast(loaded + ' JS file(s) loaded');
+      }
+    };
+    reader.readAsText(file);
+  });
+  event.target.value = '';
+}
+
+function removeJs(name) {
+  loadedScripts = loadedScripts.filter(s => s.name !== name);
+  renderJsList();
+}
+
+function renderJsList() {
+  const el = document.getElementById('jsList');
+  if (!loadedScripts.length) { el.innerHTML = ''; return; }
+  el.innerHTML = loadedScripts.map(s => `
+    <div style="display:flex;align-items:center;gap:6px;padding:5px 8px;background:var(--bg3);border:1px solid var(--line);border-radius:5px">
+      <span style="font-size:13px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">📄 ${s.name}</span>
+      <button onclick="removeJs('${s.name}')" style="background:none;border:none;color:var(--t3);cursor:pointer;font-size:15px;line-height:1" title="Remove">×</button>
+    </div>`).join('');
 }
 
 // ── Init
