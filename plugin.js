@@ -135,9 +135,9 @@ function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlB
     const pb = parseFloat(node.styles.paddingBottom) || 0;
     const pl = parseFloat(node.styles.paddingLeft)   || 0;
     const isFlex = node.styles.display === 'flex' || node.styles.display === 'inline-flex';
-    const hasPadding = pt > 0 || pr > 0 || pb > 0 || pl > 0;
 
-    if (isFlex || hasPadding) {
+    // ALL containers get FlexLayout — it's the only way to apply padding in Penpot
+    if (node.kind === 'container') {
       try {
         board.horizontalSizing = 'fix';
         board.verticalSizing   = 'fix';
