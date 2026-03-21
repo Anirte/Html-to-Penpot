@@ -84,6 +84,9 @@ function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlB
         const tc = parseCssColor(node.styles.color);
         if (tc) txt.fills = [tc];
         parentBoard.appendChild(txt);
+        try {
+          if (txt.layoutChild) txt.layoutChild.horizontalSizing = 'fill';
+        } catch (e) { /* skip */ }
       }
       return;
     }
@@ -167,20 +170,24 @@ function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlB
     // Append to parent BEFORE adding children
     parentBoard.appendChild(board);
 
-    // Direct text inside container — add as child of board (layout handles positioning)
+    // Direct text inside container — fill width so text wraps within parent
     if (node.text && node.text.trim()) {
       const txt = penpot.createText(node.text.trim());
       if (txt) {
         txt.name       = node.name + ' text';
         txt.x          = absX;
         txt.y          = absY;
-        txt.growType   = 'auto-width';
+        txt.growType   = 'auto-height'; // height adjusts to content, width fills parent
         txt.fontFamily = 'Inter';
         txt.fontSize   = String(Math.round(parseFloat(node.styles.fontSize) || 14));
         txt.fontWeight = safeWeight(node.styles.fontWeight);
         const tc = parseCssColor(node.styles.color);
         if (tc) txt.fills = [tc];
         board.appendChild(txt);
+        // Fill parent width so text wraps instead of overflowing
+        try {
+          if (txt.layoutChild) txt.layoutChild.horizontalSizing = 'fill';
+        } catch (e) { /* skip */ }
       }
     }
 
