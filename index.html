@@ -163,14 +163,26 @@ If your HTML already has &lt;style&gt; tags inside, you don't need this tab."></
     <div class="sec-label" style="margin-bottom:10px">Rendering</div>
 
     <div style="display:flex;flex-direction:column;gap:10px">
-      <div class="opt-row">
+        <div class="opt-row">
+        <span style="flex:1">Preset</span>
+        <select id="optPreset" onchange="applyPreset(this.value)"
+            style="font-family:inherit;font-size:13px;background:var(--inp);border:1px solid var(--inp-b);border-radius:4px;color:var(--t1);padding:4px 6px;outline:none">
+            <option value="desktop">Desktop 1440×900</option>
+            <option value="laptop">Laptop 1280×800</option>
+            <option value="tablet">Tablet 768×1024</option>
+            <option value="mobile">Mobile 390×844</option>
+            <option value="mobile-sm">Mobile SM 375×667</option>
+            <option value="custom">Custom</option>
+        </select>
+        </div>
+        <div class="opt-row">
         <span style="flex:1">Viewport width (px)</span>
         <input type="number" id="optWidth" value="1440" min="320" max="3840">
-      </div>
-      <div class="opt-row">
+        </div>
+        <div class="opt-row">
         <span style="flex:1">Viewport height (px)</span>
         <input type="number" id="optHeight" value="900" min="200" max="2160">
-      </div>
+        </div>
       <div class="opt-row">
         <div class="check-box on" id="chkText" onclick="toggleCheck(this)"></div>
         <span>Include text layers</span>

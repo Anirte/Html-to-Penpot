@@ -415,6 +415,23 @@ function copyMarginFix() {
   });
 }
 
+// ── Viewport presets
+const PRESETS = {
+  'desktop':   { w: 1440, h: 900  },
+  'laptop':    { w: 1280, h: 800  },
+  'tablet':    { w: 768,  h: 1024 },
+  'mobile':    { w: 390,  h: 844  },
+  'mobile-sm': { w: 375,  h: 667  },
+};
+
+function applyPreset(value) {
+  if (value === 'custom') return;
+  const p = PRESETS[value];
+  if (!p) return;
+  document.getElementById('optWidth').value  = p.w;
+  document.getElementById('optHeight').value = p.h;
+}
+
 // ── Init
 (function init() {
   const theme = new URLSearchParams(location.search).get('theme') || 'system';
