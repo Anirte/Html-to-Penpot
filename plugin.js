@@ -26,7 +26,6 @@ penpot.ui.onMessage(async (message) => {
 
     const center = penpot.viewport.center;
 
-    // Bounding box of all root nodes
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     for (const node of nodes) {
       minX = Math.min(minX, node.bounds.x);
@@ -39,7 +38,6 @@ penpot.ui.onMessage(async (message) => {
     const totalH = Math.max(1, maxY - minY);
     const PAD = 48;
 
-    // Single root board — transparent with padding around content
     const rootBoard = penpot.createBoard();
     rootBoard.name = 'HTML Import';
     rootBoard.resize(totalW + PAD * 2, totalH + PAD * 2);
@@ -58,9 +56,14 @@ penpot.ui.onMessage(async (message) => {
 
 });
 
-/**
- * Recursively build a Penpot shape for a node.
- */
+// Use Grid Layout for CSS flex-row containers with multiple children.
+// Grid with 1fr columns = flex:1 in browser — children always fill width evenly.
+function shouldUseGrid(node) {
+  const isFlex = node.styles.display === 'flex' || node.styles.display === 'inline-flex';
+  const isRow  = !((node.styles.flexDirection || '').includes('column'));
+  return isFlex && isRow && (node.children || []).length > 1;
+}
+
 function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlBaseY) {
   try {
     const relX = node.bounds.x - htmlBaseX;
@@ -70,7 +73,7 @@ function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlB
     const w    = Math.max(1, node.bounds.width);
     const h    = Math.max(1, node.bounds.height);
 
-    // ── Text node → createText
+    // Text node
     if (node.kind === 'text' && node.text && node.text.trim()) {
       const txt = penpot.createText(node.text.trim());
       if (txt) {
@@ -85,14 +88,12 @@ function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlB
         const tc = parseCssColor(node.styles.color);
         if (tc) txt.fills = [tc];
         parentBoard.appendChild(txt);
-        try {
-          if (txt.layoutChild) txt.layoutChild.horizontalSizing = 'fill';
-        } catch (e) { /* skip */ }
+        try { if (txt.layoutChild) txt.layoutChild.horizontalSizing = 'fill'; } catch (e) {}
       }
       return;
     }
 
-    // ── Leaf node → createRectangle
+    // Leaf node
     if (node.kind === 'leaf') {
       const rect = penpot.createRectangle();
       rect.name = node.name;
@@ -107,7 +108,7 @@ function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlB
       return;
     }
 
-    // ── Container → createBoard with FlexLayout
+    // Container
     const board = penpot.createBoard();
     board.name = node.name;
     board.x    = absX;
@@ -116,117 +117,239 @@ function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlB
 
     const bgFill = parseCssColor(node.styles.backgroundColor);
     board.fills = bgFill ? [bgFill] : [];
-
     applyBorderRadius(board, node.styles);
     applyStroke(board, node.styles);
     applyShadow(board, node.styles);
-    board.clipContent = node.styles.overflow === 'hidden';
+    board.clipContent      = node.styles.overflow === 'hidden';
+    board.horizontalSizing = 'fix';
+    board.verticalSizing   = 'fix';
 
-    // All containers get FlexLayout — only way to apply padding in Penpot
-    try {
-      board.horizontalSizing = 'fix';
-      board.verticalSizing   = 'fix';
-      const flex = board.addFlexLayout();
+    const childNodes = node.children || [];
+    const useGrid    = shouldUseGrid(node);
 
-      // Direction: CSS flex uses flexDirection, block elements flow as column
-      const isCssFlex = node.styles.display === 'flex' || node.styles.display === 'inline-flex';
-      const isButton  = node.tag === 'BUTTON' || node.tag === 'INPUT';
-      if (isCssFlex) {
-        const cssDir = node.styles.flexDirection || '';
-        flex.dir = cssDir.includes('column') ? 'column' : 'row';
-      } else {
-        flex.dir = isButton ? 'row' : 'column';
+    if (useGrid) {
+      // Grid Layout: 1 row + N columns of type "flex" (= 1fr each)
+      try {
+        const grid = board.addGridLayout();
+        grid.dir           = 'row';
+        grid.topPadding    = parseFloat(node.styles.paddingTop)    || 0;
+        grid.rightPadding  = parseFloat(node.styles.paddingRight)  || 0;
+        grid.bottomPadding = parseFloat(node.styles.paddingBottom) || 0;
+        grid.leftPadding   = parseFloat(node.styles.paddingLeft)   || 0;
+        grid.columnGap     = parseFloat(node.styles.columnGap) || parseFloat(node.styles.gap) || 0;
+        grid.rowGap        = parseFloat(node.styles.rowGap)    || parseFloat(node.styles.gap) || 0;
+
+        grid.addRow('auto');
+        childNodes.forEach(() => grid.addColumn('flex', 1));
+
+        // Append board to parent first, then fill grid cells
+        parentBoard.appendChild(board);
+
+        if (node.text && node.text.trim()) addTextChild(node, board, absX, absY);
+
+        childNodes.forEach((child, idx) => {
+          const shape = buildNodeReturnShape(child, board, absX, absY, node.bounds.x, node.bounds.y);
+          if (shape) {
+            try { grid.appendChild(shape, 0, idx); } catch (e) {}
+          }
+        });
+
+      } catch (e) {
+        console.warn('[grid] error:', e.message);
       }
 
-      // wrap: children stay inside boundaries
-      flex.wrap = 'wrap';
+    } else {
+      // Flex Layout for column/block containers
+      try {
+        const flex = board.addFlexLayout();
 
-      // alignItems — buttons center by default (UA stylesheet)
-      const ai = node.styles.alignItems || '';
-      flex.alignItems = ai === 'center'                     ? 'center'
-                      : (ai === 'flex-end' || ai === 'end') ? 'end'
-                      : ai === 'stretch'                    ? 'stretch'
-                      : isButton                            ? 'center'
-                      : 'start';
+        const isCssFlex = node.styles.display === 'flex' || node.styles.display === 'inline-flex';
+        const isButton  = node.tag === 'BUTTON' || node.tag === 'INPUT';
 
-      // justifyContent — buttons center by default
-      const jc = node.styles.justifyContent || '';
-      flex.justifyContent = jc === 'center'           ? 'center'
-                          : jc === 'flex-end'         ? 'end'
-                          : jc === 'space-between'    ? 'space-between'
-                          : jc === 'space-around'     ? 'space-around'
-                          : jc === 'space-evenly'     ? 'space-evenly'
-                          : isButton                  ? 'center'
-                          : 'start';
+        if (isCssFlex) {
+          flex.dir = (node.styles.flexDirection || '').includes('column') ? 'column' : 'row';
+        } else {
+          flex.dir = isButton ? 'row' : 'column';
+        }
 
-      // Padding
-      flex.topPadding    = parseFloat(node.styles.paddingTop)    || 0;
-      flex.rightPadding  = parseFloat(node.styles.paddingRight)  || 0;
-      flex.bottomPadding = parseFloat(node.styles.paddingBottom) || 0;
-      flex.leftPadding   = parseFloat(node.styles.paddingLeft)   || 0;
+        // wrap — default wrap keeps children inside; use nowrap only if CSS says so
+        flex.wrap = (node.styles.flexWrap === 'nowrap') ? 'nowrap' : 'wrap';
 
-      // Gap
-      flex.rowGap    = parseFloat(node.styles.rowGap)    || parseFloat(node.styles.gap) || 0;
-      flex.columnGap = parseFloat(node.styles.columnGap) || parseFloat(node.styles.gap) || 0;
+        const ai = node.styles.alignItems || '';
+        flex.alignItems = ai === 'center'                     ? 'center'
+                        : (ai === 'flex-end' || ai === 'end') ? 'end'
+                        : ai === 'stretch'                    ? 'stretch'
+                        : isButton                            ? 'center'
+                        : 'start';
 
-    } catch (e) { /* skip if layout fails */ }
+        const jc = node.styles.justifyContent || '';
+        flex.justifyContent = jc === 'center'        ? 'center'
+                            : jc === 'flex-end'      ? 'end'
+                            : jc === 'space-between' ? 'space-between'
+                            : jc === 'space-around'  ? 'space-around'
+                            : jc === 'space-evenly'  ? 'space-evenly'
+                            : isButton               ? 'center'
+                            : 'start';
 
-    // Append to parent BEFORE adding children
-    parentBoard.appendChild(board);
+        flex.topPadding    = parseFloat(node.styles.paddingTop)    || 0;
+        flex.rightPadding  = parseFloat(node.styles.paddingRight)  || 0;
+        flex.bottomPadding = parseFloat(node.styles.paddingBottom) || 0;
+        flex.leftPadding   = parseFloat(node.styles.paddingLeft)   || 0;
+        flex.rowGap    = parseFloat(node.styles.rowGap)    || parseFloat(node.styles.gap) || 0;
+        flex.columnGap = parseFloat(node.styles.columnGap) || parseFloat(node.styles.gap) || 0;
 
-    // Direct text inside container — add as child of board (layout handles positioning)
-    if (node.text && node.text.trim()) {
-      const txt = penpot.createText(node.text.trim());
-      if (txt) {
-        txt.name       = node.name + ' text';
-        txt.x          = absX;
-        txt.y          = absY;
-        txt.growType   = 'auto-height';
-        txt.fontFamily = resolveFont(node.styles.fontFamily);
-        txt.fontSize   = String(Math.round(parseFloat(node.styles.fontSize) || 14));
-        txt.fontWeight = safeWeight(node.styles.fontWeight);
-        const tc = parseCssColor(node.styles.color);
-        if (tc) txt.fills = [tc];
-        board.appendChild(txt);
-        try {
-          if (txt.layoutChild) txt.layoutChild.horizontalSizing = 'fill';
-        } catch (e) { /* skip */ }
-      }
-    }
+      } catch (e) {}
 
-    // Recurse into children
-    (node.children || []).forEach(child => {
-      buildNode(child, board, absX, absY, node.bounds.x, node.bounds.y);
-    });
+      parentBoard.appendChild(board);
 
-    // After children are appended, apply their layoutChild margins
-    // We need to iterate board.children which are already appended shapes
-    try {
-      const childNodes = node.children || [];
-      childNodes.forEach(cn => {
-        // Find matching shape by name
-        const shape = (board.children || []).find(s => s.name === cn.name);
-        if (!shape || !shape.layoutChild) return;
-        const mt = parseFloat(cn.styles.marginTop)    || 0;
-        const mb = parseFloat(cn.styles.marginBottom) || 0;
-        const ml = parseFloat(cn.styles.marginLeft)   || 0;
-        const mr = parseFloat(cn.styles.marginRight)  || 0;
-        // First set uniform values to initialize, then override with individual
-        shape.layoutChild.verticalMargin   = 0;
-        shape.layoutChild.horizontalMargin = 0;
-        // Individual values — this switches Penpot to "expanded" mode
-        shape.layoutChild.topMargin    = mt;
-        shape.layoutChild.rightMargin  = mr;
-        shape.layoutChild.bottomMargin = mb;
-        shape.layoutChild.leftMargin   = ml;
+      if (node.text && node.text.trim()) addTextChild(node, board, absX, absY);
+
+      childNodes.forEach(child => {
+        buildNode(child, board, absX, absY, node.bounds.x, node.bounds.y);
       });
-    } catch (e) {
-      console.warn('[margin] error:', e.message);
+
+      // Apply margins after children are appended
+      try {
+        childNodes.forEach(cn => {
+          const shape = (board.children || []).find(s => s.name === cn.name);
+          if (!shape || !shape.layoutChild) return;
+          const mt = parseFloat(cn.styles.marginTop)    || 0;
+          const mb = parseFloat(cn.styles.marginBottom) || 0;
+          const ml = parseFloat(cn.styles.marginLeft)   || 0;
+          const mr = parseFloat(cn.styles.marginRight)  || 0;
+          shape.layoutChild.verticalMargin   = 0;
+          shape.layoutChild.horizontalMargin = 0;
+          shape.layoutChild.topMargin    = mt;
+          shape.layoutChild.rightMargin  = mr;
+          shape.layoutChild.bottomMargin = mb;
+          shape.layoutChild.leftMargin   = ml;
+        });
+      } catch (e) {
+        console.warn('[margin] error:', e.message);
+      }
     }
 
   } catch (err) {
     console.warn('[html-to-penpot] Failed:', node.name, err);
   }
+}
+
+// Build a node and return the shape — used by Grid Layout to get the shape
+// reference before placing it into a grid cell.
+function buildNodeReturnShape(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlBaseY) {
+  try {
+    const relX = node.bounds.x - htmlBaseX;
+    const relY = node.bounds.y - htmlBaseY;
+    const absX = canvasBaseX + relX;
+    const absY = canvasBaseY + relY;
+    const w    = Math.max(1, node.bounds.width);
+    const h    = Math.max(1, node.bounds.height);
+
+    if (node.kind === 'text' && node.text && node.text.trim()) {
+      const txt = penpot.createText(node.text.trim());
+      if (!txt) return null;
+      txt.name       = node.name;
+      txt.x          = absX;
+      txt.y          = absY;
+      txt.growType   = 'auto-height';
+      txt.resize(w, h);
+      txt.fontFamily = resolveFont(node.styles.fontFamily);
+      txt.fontSize   = String(Math.round(parseFloat(node.styles.fontSize) || 14));
+      txt.fontWeight = safeWeight(node.styles.fontWeight);
+      const tc = parseCssColor(node.styles.color);
+      if (tc) txt.fills = [tc];
+      parentBoard.appendChild(txt);
+      return txt;
+    }
+
+    if (node.kind === 'leaf') {
+      const rect = penpot.createRectangle();
+      rect.name = node.name;
+      rect.x    = absX;
+      rect.y    = absY;
+      rect.resize(w, h);
+      const bgFill = parseCssColor(node.styles.backgroundColor);
+      rect.fills = bgFill ? [bgFill] : [];
+      applyBorderRadius(rect, node.styles);
+      applyStroke(rect, node.styles);
+      parentBoard.appendChild(rect);
+      return rect;
+    }
+
+    // Container child inside grid
+    const board = penpot.createBoard();
+    board.name = node.name;
+    board.x    = absX;
+    board.y    = absY;
+    board.resize(w, h);
+    const bgFill = parseCssColor(node.styles.backgroundColor);
+    board.fills = bgFill ? [bgFill] : [];
+    applyBorderRadius(board, node.styles);
+    applyStroke(board, node.styles);
+    applyShadow(board, node.styles);
+    board.clipContent      = node.styles.overflow === 'hidden';
+    board.horizontalSizing = 'fix';
+    board.verticalSizing   = 'fix';
+
+    try {
+      const flex = board.addFlexLayout();
+      const isCssFlex = node.styles.display === 'flex' || node.styles.display === 'inline-flex';
+      const isButton  = node.tag === 'BUTTON' || node.tag === 'INPUT';
+      flex.dir = isCssFlex
+        ? ((node.styles.flexDirection || '').includes('column') ? 'column' : 'row')
+        : (isButton ? 'row' : 'column');
+      flex.wrap = (node.styles.flexWrap === 'nowrap') ? 'nowrap' : 'wrap';
+      const ai = node.styles.alignItems || '';
+      flex.alignItems = ai === 'center' ? 'center'
+        : (ai === 'flex-end' || ai === 'end') ? 'end'
+        : ai === 'stretch' ? 'stretch'
+        : isButton ? 'center' : 'start';
+      const jc = node.styles.justifyContent || '';
+      flex.justifyContent = jc === 'center' ? 'center'
+        : jc === 'flex-end' ? 'end'
+        : jc === 'space-between' ? 'space-between'
+        : jc === 'space-around' ? 'space-around'
+        : jc === 'space-evenly' ? 'space-evenly'
+        : isButton ? 'center' : 'start';
+      flex.topPadding    = parseFloat(node.styles.paddingTop)    || 0;
+      flex.rightPadding  = parseFloat(node.styles.paddingRight)  || 0;
+      flex.bottomPadding = parseFloat(node.styles.paddingBottom) || 0;
+      flex.leftPadding   = parseFloat(node.styles.paddingLeft)   || 0;
+      flex.rowGap    = parseFloat(node.styles.rowGap)    || parseFloat(node.styles.gap) || 0;
+      flex.columnGap = parseFloat(node.styles.columnGap) || parseFloat(node.styles.gap) || 0;
+    } catch (e) {}
+
+    parentBoard.appendChild(board);
+
+    if (node.text && node.text.trim()) addTextChild(node, board, absX, absY);
+
+    (node.children || []).forEach(child => {
+      buildNode(child, board, absX, absY, node.bounds.x, node.bounds.y);
+    });
+
+    return board;
+
+  } catch (err) {
+    console.warn('[buildNodeReturnShape] Failed:', node.name, err);
+    return null;
+  }
+}
+
+// Add inline text as a child of a container board.
+function addTextChild(node, board, absX, absY) {
+  const txt = penpot.createText(node.text.trim());
+  if (!txt) return;
+  txt.name       = node.name + ' text';
+  txt.x          = absX;
+  txt.y          = absY;
+  txt.growType   = 'auto-height';
+  txt.fontFamily = resolveFont(node.styles.fontFamily);
+  txt.fontSize   = String(Math.round(parseFloat(node.styles.fontSize) || 14));
+  txt.fontWeight = safeWeight(node.styles.fontWeight);
+  const tc = parseCssColor(node.styles.color);
+  if (tc) txt.fills = [tc];
+  board.appendChild(txt);
+  try { if (txt.layoutChild) txt.layoutChild.horizontalSizing = 'fill'; } catch (e) {}
 }
 
 // ── Style helpers ──────────────────────────────────────────────
@@ -239,20 +362,14 @@ function applyBorderRadius(shape, styles) {
 function applyShadow(shape, styles) {
   const bs = styles.boxShadow;
   if (!bs) return;
-  // Chrome format: "rgba(0, 0, 0, 0.1) 0px 2px 12px 0px" — color comes first
   const colorFirst = bs.match(/^(rgba?\([^)]+\)|#[0-9a-f]+)\s+(-?[\d.]+)px\s+(-?[\d.]+)px\s+(-?[\d.]+)px(?:\s+(-?[\d.]+)px)?/i);
   const colorLast  = bs.match(/(-?[\d.]+)px\s+(-?[\d.]+)px\s+(-?[\d.]+)px(?:\s+(-?[\d.]+)px)?\s+(rgba?\([^)]+\)|#[0-9a-f]+)/i);
-
   let offsetX, offsetY, blur, spread, colorStr;
-  if (colorFirst) {
-    [, colorStr, offsetX, offsetY, blur, spread] = colorFirst;
-  } else if (colorLast) {
-    [, offsetX, offsetY, blur, spread, colorStr] = colorLast;
-  } else return;
-
+  if (colorFirst) { [, colorStr, offsetX, offsetY, blur, spread] = colorFirst; }
+  else if (colorLast) { [, offsetX, offsetY, blur, spread, colorStr] = colorLast; }
+  else return;
   const color = parseCssColor(colorStr);
   if (!color) return;
-
   shape.shadows = [{
     style:   'drop-shadow',
     offsetX: parseFloat(offsetX),
@@ -284,7 +401,10 @@ function parseCssColor(str) {
   if (m) {
     const a = m[4] !== undefined ? parseFloat(m[4]) : 1;
     if (a < 0.01) return null;
-    return { fillColor: rgbToHex(parseInt(m[1]), parseInt(m[2]), parseInt(m[3])), fillOpacity: Math.round(a * 100) / 100 };
+    return {
+      fillColor:   rgbToHex(parseInt(m[1]), parseInt(m[2]), parseInt(m[3])),
+      fillOpacity: Math.round(a * 100) / 100,
+    };
   }
   if (str.startsWith('#')) return { fillColor: str, fillOpacity: 1 };
   return null;
@@ -294,39 +414,35 @@ function rgbToHex(r, g, b) {
   return '#' + [r, g, b].map(v => Math.max(0, Math.min(255, v)).toString(16).padStart(2, '0')).join('');
 }
 
-// Font mapping — system fonts → Google Fonts equivalents
 const FONT_MAP = {
-  'system-ui':        'Inter',
-  '-apple-system':    'Inter',
+  'system-ui':          'Inter',
+  '-apple-system':      'Inter',
   'blinkmacsystemfont': 'Inter',
-  'segoe ui':         'Inter',
-  'helvetica neue':   'Inter',
-  'helvetica':        'Inter',
-  'arial':            'Inter',
-  'sans-serif':       'Inter',
-  'georgia':          'Lora',
-  'times new roman':  'Lora',
-  'times':            'Lora',
-  'serif':            'Lora',
-  'courier new':      'Roboto Mono',
-  'courier':          'Roboto Mono',
-  'monospace':        'Roboto Mono',
-  'consolas':         'Roboto Mono',
-  'ibm plex sans':    'IBM Plex Sans',
-  'ibm plex mono':    'IBM Plex Mono',
+  'segoe ui':           'Inter',
+  'helvetica neue':     'Inter',
+  'helvetica':          'Inter',
+  'arial':              'Inter',
+  'sans-serif':         'Inter',
+  'georgia':            'Lora',
+  'times new roman':    'Lora',
+  'times':              'Lora',
+  'serif':              'Lora',
+  'courier new':        'Roboto Mono',
+  'courier':            'Roboto Mono',
+  'monospace':          'Roboto Mono',
+  'consolas':           'Roboto Mono',
+  'ibm plex sans':      'IBM Plex Sans',
+  'ibm plex mono':      'IBM Plex Mono',
 };
 
 function resolveFont(cssFamily) {
   if (!cssFamily) return 'Inter';
-  // CSS fontFamily can be: "IBM Plex Sans", sans-serif
   const parts = cssFamily.split(',').map(s => s.trim().replace(/['"]/g, '').toLowerCase());
   for (const part of parts) {
-    // Check if font exists in Penpot directly
     const found = penpot.fonts.findByName(
       part.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
     );
     if (found) return found.name;
-    // Check our mapping
     if (FONT_MAP[part]) return FONT_MAP[part];
   }
   return 'Inter';

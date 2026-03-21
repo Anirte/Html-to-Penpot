@@ -118,7 +118,7 @@ const STYLE_PROPS = [
   'opacity','display','visibility','overflow',
   'paddingTop','paddingRight','paddingBottom','paddingLeft',
   'boxShadow',
-  'flexDirection','alignItems','justifyContent',
+  'flexDirection','flexWrap','alignItems','justifyContent',
   'gap','rowGap','columnGap',
   'marginTop','marginBottom','marginLeft','marginRight',
 ];
