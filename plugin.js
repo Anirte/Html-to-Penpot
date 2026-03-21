@@ -74,10 +74,9 @@ penpot.ui.onMessage(async (message) => {
 
 });
 
-// Use Grid Layout for CSS flex-row containers with multiple children.
-// Grid with 1fr columns = flex:1 in browser — children always fill width evenly.
 function shouldUseGrid(node) {
-  return false; // temporarily disabled — has ordering bug in Penpot API
+  // Only use Grid when CSS explicitly says display:grid
+  return node.styles.display === 'grid' || node.styles.display === 'inline-grid';
 }
 
 function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlBaseY, shapesWithMargin) {
@@ -191,8 +190,11 @@ function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlB
           flex.dir = isButton ? 'row' : 'column';
         }
 
-        // wrap — default wrap keeps children inside; use nowrap only if CSS says so
-        flex.wrap = (node.styles.flexWrap === 'nowrap') ? 'nowrap' : 'wrap';
+        // flex-row uses nowrap by default (prevents overflow like shade rows)
+        // flex-column uses wrap to keep children inside
+        const isFlexRow = flex.dir === 'row';
+        const cssWrap   = node.styles.flexWrap || '';
+        flex.wrap = cssWrap === 'wrap' ? 'wrap' : (isFlexRow ? 'nowrap' : 'wrap');
 
         const ai = node.styles.alignItems || '';
         flex.alignItems = ai === 'center'                     ? 'center'

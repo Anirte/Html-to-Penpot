@@ -303,6 +303,11 @@ function parseIframe(opts) {
                 styles[p] = v;
               }
             });
+            // Always collect grid-specific props — needed for correct layout detection
+            ['gridTemplateColumns','gridTemplateRows','gridAutoFlow'].forEach(p => {
+              const v = computed[p];
+              if (v) styles[p] = v;
+            });
 
             // Get visible direct children
             const visibleChildren = Array.from(el.children).filter(child => {
