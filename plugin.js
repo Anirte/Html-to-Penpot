@@ -128,6 +128,39 @@ function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlB
 
     board.clipContent = node.styles.overflow === 'hidden';
 
+    // Apply flex layout if element uses flexbox
+    if (node.styles.display === 'flex' || node.styles.display === 'inline-flex') {
+      try {
+        board.horizontalSizing = 'fix';
+        board.verticalSizing   = 'fix';
+        const flex = board.addFlexLayout();
+        // Map CSS flex-direction → Penpot dir
+        const dir = node.styles.flexDirection || 'row';
+        flex.dir = dir.includes('column') ? 'column' : 'row';
+        // Map CSS align-items
+        const ai = node.styles.alignItems || 'stretch';
+        flex.alignItems = ai === 'center' ? 'center'
+                        : ai === 'flex-end' ? 'end'
+                        : ai === 'flex-start' ? 'start'
+                        : 'stretch';
+        // Map CSS justify-content
+        const jc = node.styles.justifyContent || 'flex-start';
+        flex.justifyContent = jc === 'center' ? 'center'
+                            : jc === 'flex-end' ? 'end'
+                            : jc === 'space-between' ? 'space-between'
+                            : jc === 'space-around' ? 'space-around'
+                            : 'start';
+        // Padding
+        flex.topPadding    = parseFloat(node.styles.paddingTop)    || 0;
+        flex.rightPadding  = parseFloat(node.styles.paddingRight)  || 0;
+        flex.bottomPadding = parseFloat(node.styles.paddingBottom) || 0;
+        flex.leftPadding   = parseFloat(node.styles.paddingLeft)   || 0;
+        // Gap
+        flex.rowGap    = parseFloat(node.styles.rowGap)    || parseFloat(node.styles.gap) || 0;
+        flex.columnGap = parseFloat(node.styles.columnGap) || parseFloat(node.styles.gap) || 0;
+      } catch (e) { /* skip if flex layout fails */ }
+    }
+
     // Append to parent BEFORE recursing into children
     parentBoard.appendChild(board);
 
@@ -176,6 +209,7 @@ function applyBorderRadius(shape, styles) {
 
 function applyShadow(shape, styles) {
   const bs = styles.boxShadow;
+  console.log('[shadow] boxShadow value:', bs);
   if (!bs || bs === 'none') return;
   // boxShadow format: "Xpx Ypx Blur Spread Color" or "Xpx Ypx Blur Color"
   // Color can be rgb/rgba and comes FIRST or LAST depending on browser

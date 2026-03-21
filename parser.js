@@ -118,6 +118,8 @@ const STYLE_PROPS = [
   'opacity','display','visibility','overflow',
   'paddingTop','paddingRight','paddingBottom','paddingLeft',
   'boxShadow',
+  'flexDirection','alignItems','justifyContent',
+  'gap','rowGap','columnGap',
 ];
 
 function getOptions() {
