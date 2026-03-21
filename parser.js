@@ -120,6 +120,7 @@ const STYLE_PROPS = [
   'boxShadow',
   'flexDirection','alignItems','justifyContent',
   'gap','rowGap','columnGap',
+  'marginTop','marginBottom','marginLeft','marginRight',
 ];
 
 function getOptions() {
@@ -238,11 +239,6 @@ function parseIframe(opts) {
               if (v && v !== '' && v !== 'none' && v !== 'normal' && v !== 'auto') {
                 styles[p] = v;
               }
-            });
-            // Margins need special handling — always collect even if 0px
-            // because 0px is filtered out by the check above
-            ['marginTop','marginBottom','marginLeft','marginRight'].forEach(p => {
-              styles[p] = computed[p] || '0px';
             });
 
             // Get visible direct children
