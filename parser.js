@@ -341,12 +341,29 @@ function parseIframe(opts) {
               return cr.width >= opts.minSize && cr.height >= opts.minSize;
             });
 
-            // Always collect alignment — UA stylesheet filters these out above
-            // but buttons/flex elements need them for correct centering
-            ['alignItems','justifyContent','textAlign'].forEach(p => {
-              const v = computed[p];
-              if (v) styles[p] = v;
-            });
+            // Always collect alignment for flex/grid elements
+            // but NOT for block elements — UA stylesheet returns flex defaults
+            // even for display:block which causes wrong layout in Penpot
+            const disp = computed.display;
+            const isFlex = disp === 'flex' || disp === 'inline-flex';
+            const isGrid = disp === 'grid' || disp === 'inline-grid';
+            if (isFlex || isGrid) {
+              ['alignItems','justifyContent'].forEach(p => {
+                const v = computed[p];
+                if (v) styles[p] = v;
+              });
+              // Remove flex props collected above for non-flex elements
+            } else {
+              delete styles.flexDirection;
+              delete styles.flexWrap;
+              delete styles.alignItems;
+              delete styles.justifyContent;
+              delete styles.gap;
+              delete styles.rowGap;
+              delete styles.columnGap;
+            }
+            // textAlign applies to all elements
+            if (computed.textAlign) styles.textAlign = computed.textAlign;
 
             // Get direct text
             const directText = opts.incText ? getDirectText(el) : '';
