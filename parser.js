@@ -352,7 +352,6 @@ function parseIframe(opts) {
               });
             }
 
-            // Count non-zero margins for debug
             const hasMargin = (parseFloat(styles.marginTop) || 0) !== 0
                             || (parseFloat(styles.marginBottom) || 0) !== 0
                             || (parseFloat(styles.marginLeft) || 0) !== 0
@@ -368,7 +367,6 @@ function parseIframe(opts) {
             if (node) roots.push(node);
           });
 
-          console.log('[parser] nodes with non-zero margin:', marginCount, '/', nodeCount);
           resolve({ roots, nodeCount, skipCount, viewport: { width: opts.width, height: opts.height } });
 
         } catch (e) {
@@ -439,10 +437,14 @@ window.addEventListener('message', event => {
     btn.textContent = 'Generate in Penpot';
     log(`✓ Created ${event.data.count} frames in Penpot!`);
     if (event.data.needsMarginFix) {
-      log(`⚠ ${event.data.marginCount} elements with margins are selected in Penpot.`);
-      log('→ Click the "Margin - multiple" button in the right panel once to fix all.');
+      const cmd = `setTimeout(() => { document.querySelector('button:has(use[href="#icon-margin"])')?.click(); console.log('✓ Margin fix applied!'); }, 3000);`;
+      navigator.clipboard.writeText(cmd).catch(() => {});
+      log(`⚠ ${event.data.marginCount} elements with margins selected.`);
+      log('→ Open F12 → Ctrl+V → Enter (command already copied)');
+      toast(`✓ ${event.data.count} frames! Open F12 and paste.`);
+    } else {
+      toast(`✓ ${event.data.count} frames created!`);
     }
-    toast(`✓ ${event.data.count} frames created!`);
   }
   if (event.data.type === 'ERROR') {
     btn.disabled    = false;
