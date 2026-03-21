@@ -63,7 +63,8 @@ penpot.ui.onMessage(async (message) => {
       if (parentBoard) {
         parentBoard.appendChild(board);
       } else {
-        penpot.currentPage.appendChild(board);
+        // Page has no appendChild — use page.root which is the root shape
+        penpot.currentPage.root.appendChild(board);
       }
 
       totalCreated++;

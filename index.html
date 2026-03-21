@@ -133,10 +133,17 @@ You can paste:
 
 If your CSS is in a separate file, switch to the CSS tab and paste it there."></textarea>
     <div style="margin-top:6px;display:flex;gap:6px">
-      <button class="btn" onclick="loadSample()" style="flex:0 0 auto;font-size:12px;padding:5px 10px">Load sample</button>
-      <button class="btn" onclick="clearAll()" style="flex:0 0 auto;font-size:12px;padding:5px 10px">Clear</button>
+        <button class="btn" onclick="loadSample()" style="flex:0 0 auto;font-size:12px;padding:5px 10px">Load sample</button>
+        <label class="btn" style="flex:0 0 auto;font-size:12px;padding:5px 10px;cursor:pointer">
+        Upload HTML
+        <input type="file" accept=".html,.htm" onchange="loadFile(event)" style="display:none">
+        </label>
+        <label class="btn" style="flex:0 0 auto;font-size:12px;padding:5px 10px;cursor:pointer">
+        Upload CSS
+        <input type="file" accept=".css" onchange="loadCssFile(event)" style="display:none">
+        </label>
+        <button class="btn" onclick="clearAll()" style="flex:0 0 auto;font-size:12px;padding:5px 10px">Clear</button>
     </div>
-  </div>
 
   <!-- ── CSS tab -->
   <div id="tab-css" style="display:none">
@@ -247,6 +254,35 @@ function showStats(nodes, skipped) {
   const el = document.getElementById('stats');
   el.textContent = `✓ Parsed ${nodes} elements (skipped ${skipped} invisible/tiny)`;
   el.classList.add('show');
+}
+
+function loadFile(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    document.getElementById('htmlIn').value = e.target.result;
+    toast('HTML loaded: ' + file.name);
+  };
+  reader.readAsText(file);
+  event.target.value = '';
+}
+
+function loadCssFile(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    document.getElementById('cssIn').value = e.target.result;
+    // Switch to CSS tab so user sees it loaded
+    document.querySelectorAll('.tab').forEach((b,i) => b.classList.toggle('on', i===1));
+    ['html','css','opts'].forEach((t,i) => {
+      document.getElementById('tab-' + t).style.display = i===1 ? '' : 'none';
+    });
+    toast('CSS loaded: ' + file.name);
+  };
+  reader.readAsText(file);
+  event.target.value = '';
 }
 
 function clearAll() {
