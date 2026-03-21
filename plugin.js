@@ -46,12 +46,24 @@ penpot.ui.onMessage(async (message) => {
     rootBoard.fills = [];
 
     let totalCreated = 0;
+    const shapesWithMargin = []; // collect shapes that need margin fix
+
     for (const node of nodes) {
-      buildNode(node, rootBoard, rootBoard.x + PAD, rootBoard.y + PAD, minX, minY);
+      buildNode(node, rootBoard, rootBoard.x + PAD, rootBoard.y + PAD, minX, minY, shapesWithMargin);
       totalCreated++;
     }
 
-    penpot.ui.sendMessage({ type: 'DONE', count: totalCreated, needsMarginFix: true });
+    // Select all shapes that have non-zero margins
+    if (shapesWithMargin.length > 0) {
+      penpot.selection = shapesWithMargin;
+    }
+
+    penpot.ui.sendMessage({
+      type: 'DONE',
+      count: totalCreated,
+      needsMarginFix: shapesWithMargin.length > 0,
+      marginCount: shapesWithMargin.length
+    });
   }
 
 });
@@ -64,7 +76,8 @@ function shouldUseGrid(node) {
   return isFlex && isRow && (node.children || []).length > 1;
 }
 
-function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlBaseY) {
+function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlBaseY, shapesWithMargin) {
+  if (!shapesWithMargin) shapesWithMargin = [];
   try {
     const relX = node.bounds.x - htmlBaseX;
     const relY = node.bounds.y - htmlBaseY;
@@ -207,7 +220,7 @@ function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlB
       if (node.text && node.text.trim()) addTextChild(node, board, absX, absY);
 
       childNodes.forEach(child => {
-        buildNode(child, board, absX, absY, node.bounds.x, node.bounds.y);
+        buildNode(child, board, absX, absY, node.bounds.x, node.bounds.y, shapesWithMargin);
       });
 
       // Apply margins after children are appended
@@ -225,6 +238,10 @@ function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlB
           shape.layoutChild.rightMargin  = mr;
           shape.layoutChild.bottomMargin = mb;
           shape.layoutChild.leftMargin   = ml;
+          // Track shapes with non-zero margins for bulk selection
+          if (mt !== 0 || mb !== 0 || ml !== 0 || mr !== 0) {
+            shapesWithMargin.push(shape);
+          }
         });
       } catch (e) {
         console.warn('[margin] error:', e.message);
