@@ -55,7 +55,11 @@ penpot.ui.onMessage(async (message) => {
 
     // Select all shapes that have non-zero margins
     if (shapesWithMargin.length > 0) {
-      penpot.selection = shapesWithMargin;
+      try {
+        penpot.selection = shapesWithMargin;
+      } catch (e) {
+        console.warn('[selection] error:', e.message);
+      }
     }
 
     penpot.ui.sendMessage({
@@ -163,7 +167,7 @@ function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlB
         // Sort children left-to-right by x position before placing in grid
         const sortedChildren = [...childNodes].sort((a, b) => a.bounds.x - b.bounds.x);
         sortedChildren.forEach((child, idx) => {
-          const shape = buildNodeReturnShape(child, board, absX, absY, node.bounds.x, node.bounds.y);
+          const shape = buildNodeReturnShape(child, board, absX, absY, node.bounds.x, node.bounds.y, shapesWithMargin);
           if (shape) {
             try { grid.appendChild(shape, 0, idx); } catch (e) {}
           }
@@ -255,7 +259,8 @@ function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlB
 
 // Build a node and return the shape — used by Grid Layout to get the shape
 // reference before placing it into a grid cell.
-function buildNodeReturnShape(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlBaseY) {
+function buildNodeReturnShape(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlBaseY, shapesWithMargin) {
+  if (!shapesWithMargin) shapesWithMargin = [];
   try {
     const relX = node.bounds.x - htmlBaseX;
     const relY = node.bounds.y - htmlBaseY;
@@ -343,7 +348,7 @@ function buildNodeReturnShape(node, parentBoard, canvasBaseX, canvasBaseY, htmlB
     if (node.text && node.text.trim()) addTextChild(node, board, absX, absY);
 
     (node.children || []).forEach(child => {
-      buildNode(child, board, absX, absY, node.bounds.x, node.bounds.y);
+      buildNode(child, board, absX, absY, node.bounds.x, node.bounds.y, shapesWithMargin);
     });
 
     return board;
