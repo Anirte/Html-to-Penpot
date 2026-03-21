@@ -468,6 +468,7 @@ window.addEventListener('message', event => {
     if (event.data.needsMarginFix) {
       log(`⚠ ${event.data.marginCount} elements with margins selected.`);
       log('→ Click "Copy margin fix" then open F12 → Ctrl+V → Enter');
+      log('⏱ Complex layouts may take 1-2 min to apply — wait for "✓ Margin fix applied!" in console.');
       document.getElementById('marginFixBtn').style.display = 'block';
       toast(`✓ ${event.data.count} frames created!`);
     } else {

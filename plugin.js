@@ -243,9 +243,12 @@ function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlB
           shape.layoutChild.rightMargin  = mr;
           shape.layoutChild.bottomMargin = mb;
           shape.layoutChild.leftMargin   = ml;
-          // Apply flexGrow — makes element fill available space (like flex:1)
+          // flexGrow > 0 means element fills available space
           const fg = parseFloat(cn.styles.flexGrow) || 0;
-          if (fg > 0) shape.layoutChild.horizontalSizing = 'fill';
+          if (fg > 0) {
+            console.log('[flexGrow] applying fill to:', shape.name, 'fg:', fg);
+            shape.layoutChild.horizontalSizing = 'fill';
+          }
           if (mt !== 0 || mb !== 0 || ml !== 0 || mr !== 0) {
             shapesWithMargin.push(shape);
           }
