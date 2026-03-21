@@ -197,14 +197,21 @@ function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlB
       const childNodes  = node.children  || [];
       childShapes.forEach((shape, i) => {
         const cn = childNodes[i];
-        if (!cn || !shape.layoutChild) return;
-        const lc = shape.layoutChild;
-        lc.topMargin    = parseFloat(cn.styles.marginTop)    || 0;
-        lc.bottomMargin = parseFloat(cn.styles.marginBottom) || 0;
-        lc.leftMargin   = parseFloat(cn.styles.marginLeft)   || 0;
-        lc.rightMargin  = parseFloat(cn.styles.marginRight)  || 0;
+        if (!cn) return;
+        const mt = parseFloat(cn.styles.marginTop)    || 0;
+        const mb = parseFloat(cn.styles.marginBottom) || 0;
+        const ml = parseFloat(cn.styles.marginLeft)   || 0;
+        const mr = parseFloat(cn.styles.marginRight)  || 0;
+        console.log('[margin]', shape.name, 'layoutChild:', !!shape.layoutChild, 'mt:', mt, 'mb:', mb);
+        if (!shape.layoutChild) return;
+        shape.layoutChild.topMargin    = mt;
+        shape.layoutChild.bottomMargin = mb;
+        shape.layoutChild.leftMargin   = ml;
+        shape.layoutChild.rightMargin  = mr;
       });
-    } catch (e) { /* skip */ }
+    } catch (e) {
+      console.warn('[margin] error:', e.message);
+    }
 
   } catch (err) {
     console.warn('[html-to-penpot] Failed:', node.name, err);
