@@ -65,7 +65,6 @@ function loadCssFile(event) {
   const reader = new FileReader();
   reader.onload = e => {
     document.getElementById('cssIn').value = e.target.result;
-    // Switch to CSS tab so user sees it loaded
     document.querySelectorAll('.tab').forEach((b, i) => b.classList.toggle('on', i === 1));
     ['html','css','opts'].forEach((t, i) => {
       document.getElementById('tab-' + t).style.display = i === 1 ? '' : 'none';
@@ -104,59 +103,72 @@ function loadSample() {
 
 // ══════════════════════════════════════════ PARSE ENGINE
 
-// Tags we completely ignore
 const SKIP_TAGS = new Set([
   'SCRIPT','STYLE','META','LINK','HEAD','NOSCRIPT',
-  'SVG','PATH','DEFS','SYMBOL','USE','G',
-  'BR','HR','WBR',
+  'SVG','PATH','DEFS','SYMBOL','USE','G','BR','HR','WBR',
 ]);
 
-// CSS properties we collect from computedStyle
+const IMAGE_TAGS = new Set(['IMG','PICTURE','VIDEO']);
+
 const STYLE_PROPS = [
   'backgroundColor','color',
   'fontSize','fontFamily','fontWeight','lineHeight',
   'borderRadius',
-  'borderTopWidth','borderRightWidth','borderBottomWidth','borderLeftWidth',
-  'borderTopColor','borderStyle',
-  'opacity','display','visibility',
+  'borderTopWidth','borderTopColor','borderStyle',
+  'opacity','display','visibility','overflow',
   'paddingTop','paddingRight','paddingBottom','paddingLeft',
   'boxShadow',
 ];
 
 function getOptions() {
   return {
-    width:    parseInt(document.getElementById('optWidth').value)    || 1440,
-    height:   parseInt(document.getElementById('optHeight').value)   || 900,
-    minSize:  parseInt(document.getElementById('optMinSize').value)  || 4,
-    maxDepth: parseInt(document.getElementById('optMaxDepth').value) || 8,
+    width:     parseInt(document.getElementById('optWidth').value)    || 1440,
+    height:    parseInt(document.getElementById('optHeight').value)   || 900,
+    minSize:   parseInt(document.getElementById('optMinSize').value)  || 4,
+    maxDepth:  parseInt(document.getElementById('optMaxDepth').value) || 8,
     incText:   document.getElementById('chkText').classList.contains('on'),
-    incBg:     document.getElementById('chkBg').classList.contains('on'),
-    incBorder: document.getElementById('chkBorder').classList.contains('on'),
     incHidden: document.getElementById('chkHidden').classList.contains('on'),
   };
 }
 
-// Build the full HTML string to inject into iframe
 function buildHtml() {
   let html  = document.getElementById('htmlIn').value.trim();
   const css = document.getElementById('cssIn').value.trim();
-
   if (!html) return null;
-
-  // Wrap snippet if no <html> tag
   if (!html.toLowerCase().includes('<html')) {
     html = `<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body>${html}</body></html>`;
   }
-
-  // Inject external CSS before </head>
   if (css) {
     const styleTag = `<style>\n${css}\n</style>`;
     html = html.includes('</head>')
       ? html.replace('</head>', styleTag + '</head>')
       : html.replace('<body', styleTag + '<body');
   }
-
   return html;
+}
+
+// ── Classify element: container / text / image / leaf
+function classifyElement(el, computed, visibleChildren, directText) {
+  if (IMAGE_TAGS.has(el.tagName)) return 'image';
+  const bgImage = computed.backgroundImage || '';
+  if (bgImage.includes('url(') && !bgImage.includes('gradient')) {
+    if (visibleChildren.length === 0 && !directText) return 'image';
+  }
+  if (visibleChildren.length > 0) return 'container';
+  if (directText) return 'text';
+  return 'leaf';
+}
+
+// ── Get direct text nodes only (not from children)
+function getDirectText(el) {
+  let text = '';
+  el.childNodes.forEach(n => {
+    if (n.nodeType === Node.TEXT_NODE) {
+      const t = n.textContent.trim();
+      if (t) text += (text ? ' ' : '') + t;
+    }
+  });
+  return text;
 }
 
 // ── Main parse — renders HTML in hidden iframe, walks DOM
@@ -168,7 +180,6 @@ function parseIframe(opts) {
     const iframe = document.getElementById('renderer');
     iframe.style.width  = opts.width  + 'px';
     iframe.style.height = opts.height + 'px';
-
     iframe.srcdoc = html;
 
     iframe.onload = () => {
@@ -177,6 +188,13 @@ function parseIframe(opts) {
           const doc = iframe.contentDocument;
           const win = iframe.contentWindow;
           if (!doc || !win) return reject(new Error('Cannot access iframe document'));
+
+          const body = doc.body;
+          if (!body) return reject(new Error('No <body> in HTML'));
+
+          // CRITICAL: single coordinate origin = body's top-left corner
+          // All bounds.x/y are relative to this point
+          const rootRect = body.getBoundingClientRect();
 
           let nodeCount = 0;
           let skipCount = 0;
@@ -190,12 +208,6 @@ function parseIframe(opts) {
             const rect     = el.getBoundingClientRect();
             const computed = win.getComputedStyle(el);
 
-            // Relative position = this rect minus direct parent rect
-            const parentEl    = el.parentElement;
-            const parentBCR   = parentEl ? parentEl.getBoundingClientRect() : { x: 0, y: 0 };
-            const relX = rect.x - parentBCR.x;
-            const relY = rect.y - parentBCR.y;
-
             // Skip invisible
             if (!opts.incHidden) {
               if (computed.display === 'none')          { skipCount++; return null; }
@@ -207,7 +219,7 @@ function parseIframe(opts) {
             if (rect.width < opts.minSize || rect.height < opts.minSize) { skipCount++; return null; }
             if (rect.right < 0 || rect.bottom < 0)                       { skipCount++; return null; }
 
-            // Collect styles
+            // Collect computed styles
             const styles = {};
             STYLE_PROPS.forEach(p => {
               const v = computed[p];
@@ -216,67 +228,54 @@ function parseIframe(opts) {
               }
             });
 
-            // Direct text content only (not from children)
-            let text = '';
-            if (opts.incText) {
-              el.childNodes.forEach(n => {
-                if (n.nodeType === Node.TEXT_NODE) {
-                  const t = n.textContent.trim();
-                  if (t) text += (text ? ' ' : '') + t;
-                }
-              });
-            }
+            // Get visible direct children
+            const visibleChildren = Array.from(el.children).filter(child => {
+              if (SKIP_TAGS.has(child.tagName)) return false;
+              const cs = win.getComputedStyle(child);
+              if (cs.display === 'none' || cs.visibility === 'hidden') return false;
+              const cr = child.getBoundingClientRect();
+              return cr.width >= opts.minSize && cr.height >= opts.minSize;
+            });
 
-            // Layer name: prefer #id, then .className, then tag
+            // Get direct text
+            const directText = opts.incText ? getDirectText(el) : '';
+
+            // Classify
+            const kind = classifyElement(el, computed, visibleChildren, directText);
+
+            // Layer name
             const name = el.id
-              ? '#' + el.id
-              : (el.className && typeof el.className === 'string')
-                ? '.' + el.className.trim().split(/\s+/)[0]
-                : tag.toLowerCase();
+              ? el.tagName.toLowerCase() + '#' + el.id
+              : (el.className && typeof el.className === 'string' && el.className.trim())
+                ? el.tagName.toLowerCase() + '.' + el.className.trim().split(/\s+/)[0]
+                : el.tagName.toLowerCase();
 
             nodeCount++;
 
-            // Recurse into children
-            const children = [];
-            Array.from(el.children).forEach(child => {
-              const childNode = walkNode(child, depth + 1);
-              if (childNode) children.push(childNode);
-            });
-
-            return {
-              id: nodeCount,
-              tag,
-              name,
-              text,
-              rect: {
-                x:      Math.round(rect.x),
-                y:      Math.round(rect.y),
-                width:  Math.round(rect.width),
-                height: Math.round(rect.height),
-                // Relative to direct parent — used by plugin.js for positioning
-                relX:   Math.round(relX),
-                relY:   Math.round(relY),
-              },
-              styles,
-              children,
+            // bounds are relative to rootRect (body top-left)
+            const bounds = {
+              x:      Math.round(rect.left - rootRect.left),
+              y:      Math.round(rect.top  - rootRect.top),
+              width:  Math.round(rect.width),
+              height: Math.round(rect.height),
             };
+
+            // Recurse only for containers
+            const children = [];
+            if (kind === 'container') {
+              visibleChildren.forEach(child => {
+                const childNode = walkNode(child, depth + 1);
+                if (childNode) children.push(childNode);
+              });
+            }
+
+            return { id: nodeCount, tag, name, kind, text: directText, bounds, styles, children };
           }
-
-          const body = doc.body;
-          if (!body) return reject(new Error('No <body> found in HTML'));
-
-          // Use body's rect as the coordinate origin for all root elements
-          const bodyRect = body.getBoundingClientRect();
 
           const roots = [];
           Array.from(body.children).forEach(child => {
             const node = walkNode(child, 0);
-            if (node) {
-              // Adjust root elements relative to body origin
-              node.rect.relX = node.rect.x - bodyRect.x;
-              node.rect.relY = node.rect.y - bodyRect.y;
-              roots.push(node);
-            }
+            if (node) roots.push(node);
           });
 
           resolve({ roots, nodeCount, skipCount, viewport: { width: opts.width, height: opts.height } });
@@ -302,7 +301,7 @@ async function previewParse() {
     showStats(nodeCount, skipCount);
     log('Top-level elements: ' + roots.length);
     roots.forEach(r => {
-      log(`  ${r.name}  ${r.rect.width}×${r.rect.height}  (${r.children.length} children)`);
+      log(`  [${r.kind}] ${r.name}  ${r.bounds.width}×${r.bounds.height}  (${r.children.length} children)`);
     });
     log('Ready to generate!');
   } catch (e) {
@@ -358,7 +357,7 @@ window.addEventListener('message', event => {
   }
 });
 
-// ── Init: read theme from URL
+// ── Init
 (function init() {
   const theme = new URLSearchParams(location.search).get('theme') || 'system';
   document.body.setAttribute('data-theme', theme);

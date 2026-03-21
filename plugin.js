@@ -1,13 +1,13 @@
 /**
  * plugin.js
  *
- * CRITICAL (from Penpot API):
- * shape.x / shape.y are ABSOLUTE canvas coordinates.
- * When appended to a board, they do NOT become relative to that board.
- * So every child must be placed at:
- *   shape.x = canvasBaseX + (node.bounds.x - htmlBaseX)
- *   shape.y = canvasBaseY + (node.bounds.y - htmlBaseY)
- * where canvasBaseX/Y is the absolute canvas position of the parent board.
+ * CRITICAL (Penpot API):
+ * shape.x / shape.y are ABSOLUTE canvas coordinates always.
+ * Even when appended to a board, coordinates stay absolute.
+ *
+ * Formula for each child:
+ *   absX = canvasBaseX + (node.bounds.x - htmlBaseX)
+ *   absY = canvasBaseY + (node.bounds.y - htmlBaseY)
  */
 
 penpot.ui.open('HTML to Penpot', `?theme=${penpot.theme}`, {
@@ -24,22 +24,22 @@ penpot.ui.onMessage(async (message) => {
       return;
     }
 
-    // Center on current viewport
+    // Center on viewport
     const center = penpot.viewport.center;
 
-    // Calculate bounding box of all root nodes
+    // Bounding box of all root nodes
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     for (const node of nodes) {
-      minX = Math.min(minX, node.rect.x);
-      minY = Math.min(minY, node.rect.y);
-      maxX = Math.max(maxX, node.rect.x + node.rect.width);
-      maxY = Math.max(maxY, node.rect.y + node.rect.height);
+      minX = Math.min(minX, node.bounds.x);
+      minY = Math.min(minY, node.bounds.y);
+      maxX = Math.max(maxX, node.bounds.x + node.bounds.width);
+      maxY = Math.max(maxY, node.bounds.y + node.bounds.height);
     }
 
     const totalW = Math.max(1, maxX - minX);
     const totalH = Math.max(1, maxY - minY);
 
-    // One root board that wraps everything
+    // Single root board wrapping everything
     const rootBoard = penpot.createBoard();
     rootBoard.name = 'HTML Import';
     rootBoard.resize(totalW, totalH);
@@ -49,16 +49,8 @@ penpot.ui.onMessage(async (message) => {
 
     let totalCreated = 0;
 
-    // Build all root nodes inside the root board
     for (const node of nodes) {
-      buildNode(
-        node,
-        rootBoard,
-        rootBoard.x,  // absolute canvas X of parent board
-        rootBoard.y,  // absolute canvas Y of parent board
-        minX,         // HTML-space origin X
-        minY,         // HTML-space origin Y
-      );
+      buildNode(node, rootBoard, rootBoard.x, rootBoard.y, minX, minY);
       totalCreated++;
     }
 
@@ -68,97 +60,130 @@ penpot.ui.onMessage(async (message) => {
 });
 
 /**
- * Recursively create a board for a node and append to parent.
+ * Recursively build a Penpot shape for a node.
  *
- * @param node         The element node from parser
- * @param parentBoard  The Penpot board to append into
+ * @param node         Parsed node from parser.js
+ * @param parentBoard  Parent Penpot board
  * @param canvasBaseX  Absolute canvas X of the parent board
  * @param canvasBaseY  Absolute canvas Y of the parent board
- * @param htmlBaseX    HTML-space X origin (what 0 means at this level)
- * @param htmlBaseY    HTML-space Y origin
+ * @param htmlBaseX    HTML-space X origin at this level
+ * @param htmlBaseY    HTML-space Y origin at this level
  */
 function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlBaseY) {
   try {
-    // Offset from parent origin in HTML space
-    const relX = node.rect.x - htmlBaseX;
-    const relY = node.rect.y - htmlBaseY;
-
-    // Absolute canvas position for this shape
+    const relX = node.bounds.x - htmlBaseX;
+    const relY = node.bounds.y - htmlBaseY;
     const absX = canvasBaseX + relX;
     const absY = canvasBaseY + relY;
+    const w    = Math.max(1, node.bounds.width);
+    const h    = Math.max(1, node.bounds.height);
 
-    const w = Math.max(1, node.rect.width);
-    const h = Math.max(1, node.rect.height);
-
-    const board = penpot.createBoard();
-    board.name = node.name || node.tag || 'element';
-    board.x = absX;
-    board.y = absY;
-    board.resize(w, h);
-
-    // Background
-    const bgFill = parseCssColor(node.styles.backgroundColor);
-    board.fills = bgFill ? [bgFill] : [];
-
-    // Border radius
-    const br = parseFloat(node.styles.borderRadius);
-    if (!isNaN(br) && br > 0) board.borderRadius = Math.round(br);
-
-    // Border/stroke
-    const bw = parseFloat(node.styles.borderTopWidth);
-    const bc = parseCssColor(node.styles.borderTopColor);
-    if (bc && bw > 0 && node.styles.borderStyle !== 'none') {
-      board.strokes = [{
-        strokeColor:     bc.fillColor,
-        strokeOpacity:   bc.fillOpacity,
-        strokeStyle:     'solid',
-        strokeWidth:     Math.round(bw),
-        strokeAlignment: 'center',
-      }];
-    }
-
-    // Clip overflow
-    board.clipContent = (node.styles.overflow === 'hidden');
-
-    // Append to parent first
-    parentBoard.appendChild(board);
-
-    // Text layer — placed inside this node's board, at absolute canvas coords
-    if (node.text && node.text.trim()) {
+    // ── Text node → createText (not a board)
+    if (node.kind === 'text' && node.text && node.text.trim()) {
       const txt = penpot.createText(node.text.trim());
       if (txt) {
-        txt.name       = 'text';
+        txt.name       = node.name;
         txt.x          = absX;
         txt.y          = absY;
-        txt.growType   = 'auto-height';
+        txt.growType   = 'fixed';
+        txt.resize(w, h);
         txt.fontFamily = 'Inter';
         txt.fontSize   = String(Math.round(parseFloat(node.styles.fontSize) || 14));
         txt.fontWeight = safeWeight(node.styles.fontWeight);
         const tc = parseCssColor(node.styles.color);
         if (tc) txt.fills = [tc];
-        // Append into THIS board, not the parent
-        board.appendChild(txt);
+        parentBoard.appendChild(txt);
       }
+      return;
     }
 
-    // Recurse — children use THIS board's canvas pos and THIS node's HTML pos as new origin
+    // ── Leaf node → createRectangle (simple colored box, no children)
+    if (node.kind === 'leaf') {
+      const rect = penpot.createRectangle();
+      rect.name = node.name;
+      rect.x    = absX;
+      rect.y    = absY;
+      rect.resize(w, h);
+      const bgFill = parseCssColor(node.styles.backgroundColor);
+      rect.fills = bgFill ? [bgFill] : [];
+      applyBorderRadius(rect, node.styles);
+      applyStroke(rect, node.styles);
+      parentBoard.appendChild(rect);
+      return;
+    }
+
+    // ── Container / image / default → createBoard
+    const board = penpot.createBoard();
+    board.name = node.name;
+    board.x    = absX;
+    board.y    = absY;
+    board.resize(w, h);
+
+    const bgFill = parseCssColor(node.styles.backgroundColor);
+    board.fills = bgFill ? [bgFill] : [];
+
+    applyBorderRadius(board, node.styles);
+    applyStroke(board, node.styles);
+
+    board.clipContent = node.styles.overflow === 'hidden';
+
+    // Append to parent BEFORE recursing into children
+    parentBoard.appendChild(board);
+
+    // Recurse — children use THIS board's canvas pos and THIS node's HTML pos
     (node.children || []).forEach(child => {
       buildNode(
         child,
         board,
         absX,          // this board's absolute canvas X
         absY,          // this board's absolute canvas Y
-        node.rect.x,   // this node's HTML-space X as new origin
-        node.rect.y,   // this node's HTML-space Y as new origin
+        node.bounds.x, // this node's HTML-space origin X
+        node.bounds.y, // this node's HTML-space origin Y
       );
     });
 
+    // If container also has direct text, add it as a text layer on top
+    if (node.text && node.text.trim()) {
+      const txt = penpot.createText(node.text.trim());
+      if (txt) {
+        txt.name       = node.name + ' text';
+        txt.x          = absX;
+        txt.y          = absY;
+        txt.growType   = 'auto-width';
+        txt.fontFamily = 'Inter';
+        txt.fontSize   = String(Math.round(parseFloat(node.styles.fontSize) || 14));
+        txt.fontWeight = safeWeight(node.styles.fontWeight);
+        const tc = parseCssColor(node.styles.color);
+        if (tc) txt.fills = [tc];
+        board.appendChild(txt);
+      }
+    }
+
   } catch (err) {
-    console.warn('[html-to-penpot] Failed node:', node.name, err);
+    console.warn('[html-to-penpot] Failed:', node.name, err);
   }
 }
 
-// ── Helpers ────────────────────────────────────────────────────
+// ── Style helpers ──────────────────────────────────────────────
+
+function applyBorderRadius(shape, styles) {
+  const br = parseFloat(styles.borderRadius);
+  if (!isNaN(br) && br > 0) shape.borderRadius = Math.round(br);
+}
+
+function applyStroke(shape, styles) {
+  const bw = parseFloat(styles.borderTopWidth);
+  const bc = parseCssColor(styles.borderTopColor);
+  if (bc && bw > 0 && styles.borderStyle !== 'none') {
+    shape.strokes = [{
+      strokeColor:     bc.fillColor,
+      strokeOpacity:   bc.fillOpacity,
+      strokeStyle:     'solid',
+      strokeWidth:     Math.round(bw),
+      strokeAlignment: 'center',
+    }];
+  }
+}
 
 function parseCssColor(str) {
   if (!str || str === 'transparent' || str === 'rgba(0, 0, 0, 0)') return null;
