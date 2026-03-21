@@ -6,32 +6,44 @@ penpot.ui.open('HTML to Penpot', `?theme=${penpot.theme}`, {
 penpot.ui.onMessage(async (message) => {
 
   if (message.type === 'CREATE_FRAMES') {
-    const { nodes, viewport } = message;
+    const { nodes } = message;
 
     const OFFSET_X = 100;
     const OFFSET_Y = 100;
     let totalCreated = 0;
 
     function createNode(node, parentBoard) {
+      // Create a Board (= Frame in Penpot)
       const board = penpot.createBoard();
-      board.name   = node.name || node.tag;
-      board.width  = Math.max(1, node.rect.width);
-      board.height = Math.max(1, node.rect.height);
 
+      // name — writable directly
+      board.name = node.name || node.tag;
+
+      // width/height — MUST use resize(), they are readonly properties
+      board.resize(Math.max(1, node.rect.width), Math.max(1, node.rect.height));
+
+      // x, y — writable directly
       if (!parentBoard) {
+        // Root node: offset to canvas position
         board.x = OFFSET_X + node.rect.x;
         board.y = OFFSET_Y + node.rect.y;
       } else {
+        // Child node: position relative to parent
         board.x = node.rect.x - node.parentRect.x;
         board.y = node.rect.y - node.parentRect.y;
       }
 
+      // fills — writable directly as array
       const bgFill = parseCssColor(node.styles.backgroundColor);
       board.fills = bgFill ? [bgFill] : [];
 
+      // borderRadius — writable directly
       const br = parseFloat(node.styles.borderRadius);
-      if (!isNaN(br) && br > 0) board.borderRadius = Math.round(br);
+      if (!isNaN(br) && br > 0) {
+        board.borderRadius = Math.round(br);
+      }
 
+      // strokes — writable directly as array
       const bw = parseFloat(node.styles.borderTopWidth);
       const bc = parseCssColor(node.styles.borderTopColor);
       if (bc && bw > 0 && node.styles.borderStyle !== 'none') {
@@ -44,8 +56,10 @@ penpot.ui.onMessage(async (message) => {
         }];
       }
 
+      // clipContent — writable directly
       board.clipContent = true;
 
+      // Attach to page or parent
       if (parentBoard) {
         parentBoard.appendChild(board);
       } else {
@@ -54,9 +68,12 @@ penpot.ui.onMessage(async (message) => {
 
       totalCreated++;
 
+      // Text layer — only if element has direct text
       if (node.text && node.text.trim()) {
+        // createText(text) takes text as argument, returns Text | null
         const txt = penpot.createText(node.text.trim());
         if (txt) {
+          // growType, fontFamily, fontSize, fontWeight — all writable
           txt.growType   = 'auto-height';
           txt.fontFamily = cleanFont(node.styles.fontFamily) || 'Inter';
           txt.fontSize   = String(Math.round(parseFloat(node.styles.fontSize) || 14));
@@ -70,9 +87,11 @@ penpot.ui.onMessage(async (message) => {
         }
       }
 
+      // Recurse into children
       (node.children || []).forEach(child => createNode(child, board));
     }
 
+    // Create all root nodes on the current page
     nodes.forEach(node => createNode(node, null));
 
     penpot.ui.sendMessage({ type: 'DONE', count: totalCreated });
@@ -80,8 +99,10 @@ penpot.ui.onMessage(async (message) => {
 
 });
 
+// ── Parse "rgb(r,g,b)" / "rgba(r,g,b,a)" → Penpot Fill object
 function parseCssColor(str) {
   if (!str || str === 'transparent' || str === 'rgba(0, 0, 0, 0)') return null;
+
   const m = str.match(/rgba?\(\s*([\d.]+),\s*([\d.]+),\s*([\d.]+)(?:,\s*([\d.]+))?\s*\)/);
   if (m) {
     const a = m[4] !== undefined ? parseFloat(m[4]) : 1;
@@ -96,9 +117,12 @@ function parseCssColor(str) {
 }
 
 function rgbToHex(r, g, b) {
-  return '#' + [r,g,b].map(v => Math.max(0,Math.min(255,v)).toString(16).padStart(2,'0')).join('');
+  return '#' + [r, g, b]
+    .map(v => Math.max(0, Math.min(255, v)).toString(16).padStart(2, '0'))
+    .join('');
 }
 
+// "IBM Plex Sans", sans-serif → IBM Plex Sans
 function cleanFont(str) {
   if (!str) return null;
   return str.split(',')[0].trim().replace(/['"]/g, '');
