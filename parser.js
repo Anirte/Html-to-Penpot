@@ -239,6 +239,11 @@ function parseIframe(opts) {
                 styles[p] = v;
               }
             });
+            // Margins need special handling — always collect even if 0px
+            // because 0px is filtered out by the check above
+            ['marginTop','marginBottom','marginLeft','marginRight'].forEach(p => {
+              styles[p] = computed[p] || '0px';
+            });
 
             // Get visible direct children
             const visibleChildren = Array.from(el.children).filter(child => {
