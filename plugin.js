@@ -124,6 +124,7 @@ function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlB
 
     applyBorderRadius(board, node.styles);
     applyStroke(board, node.styles);
+    applyShadow(board, node.styles);
 
     board.clipContent = node.styles.overflow === 'hidden';
 
@@ -169,6 +170,25 @@ function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlB
 function applyBorderRadius(shape, styles) {
   const br = parseFloat(styles.borderRadius);
   if (!isNaN(br) && br > 0) shape.borderRadius = Math.round(br);
+}
+
+function applyShadow(shape, styles) {
+  const bs = styles.boxShadow;
+  if (!bs || bs === 'none') return;
+  // Parse "2px 12px 20px rgba(0,0,0,0.1)" — simple single shadow
+  const m = bs.match(/(-?[\d.]+)px\s+(-?[\d.]+)px\s+(-?[\d.]+)px(?:\s+(-?[\d.]+)px)?\s+(rgba?\([^)]+\)|#[0-9a-f]+)/i);
+  if (!m) return;
+  const color = parseCssColor(m[5]);
+  if (!color) return;
+  shape.shadows = [{
+    style:   'drop-shadow',
+    offsetX: parseFloat(m[1]),
+    offsetY: parseFloat(m[2]),
+    blur:    parseFloat(m[3]),
+    spread:  parseFloat(m[4] || '0'),
+    color:   { color: color.fillColor, opacity: color.fillOpacity },
+    hidden:  false,
+  }];
 }
 
 function applyStroke(shape, styles) {

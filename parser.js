@@ -155,7 +155,17 @@ function classifyElement(el, computed, visibleChildren, directText) {
     if (visibleChildren.length === 0 && !directText) return 'image';
   }
   if (visibleChildren.length > 0) return 'container';
-  if (directText) return 'text';
+  // If element has text BUT also has a visible background or border-radius
+  // treat as container so we can render both the box and the text
+  if (directText) {
+    const hasBg = computed.backgroundColor &&
+                  computed.backgroundColor !== 'rgba(0, 0, 0, 0)' &&
+                  computed.backgroundColor !== 'transparent';
+    const hasBr = parseFloat(computed.borderRadius) > 0;
+    const hasBorder = parseFloat(computed.borderTopWidth) > 0;
+    if (hasBg || hasBr || hasBorder) return 'container';
+    return 'text';
+  }
   return 'leaf';
 }
 
