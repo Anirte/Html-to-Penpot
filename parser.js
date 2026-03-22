@@ -53,10 +53,29 @@ function loadFile(event) {
   const reader = new FileReader();
   reader.onload = e => {
     document.getElementById('htmlIn').value = e.target.result;
+    localStorage.setItem('lastHtml', e.target.result);
+    localStorage.setItem('lastHtmlName', file.name);
     toast('HTML loaded: ' + file.name);
   };
   reader.readAsText(file);
   event.target.value = '';
+}
+
+function reloadLast() {
+  const html = localStorage.getItem('lastHtml');
+  const htmlName = localStorage.getItem('lastHtmlName');
+  const css = localStorage.getItem('lastCss');
+  const cssName = localStorage.getItem('lastCssName');
+  if (!html && !css) return toast('No files saved yet', '#e86060');
+  if (html) {
+    document.getElementById('htmlIn').value = html;
+    log('Reloaded: ' + (htmlName || 'HTML'));
+  }
+  if (css) {
+    document.getElementById('cssIn').value = css;
+    log('Reloaded: ' + (cssName || 'CSS'));
+  }
+  toast('Last files reloaded!');
 }
 
 function loadCssFile(event) {
@@ -65,6 +84,8 @@ function loadCssFile(event) {
   const reader = new FileReader();
   reader.onload = e => {
     document.getElementById('cssIn').value = e.target.result;
+    localStorage.setItem('lastCss', e.target.result);
+    localStorage.setItem('lastCssName', file.name);
     document.querySelectorAll('.tab').forEach((b, i) => b.classList.toggle('on', i === 1));
     ['html','css','opts'].forEach((t, i) => {
       document.getElementById('tab-' + t).style.display = i === 1 ? '' : 'none';
