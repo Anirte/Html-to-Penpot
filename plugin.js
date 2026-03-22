@@ -189,16 +189,9 @@ function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlB
           flex.dir = isButton ? 'row' : 'column';
         }
 
-        const cssWrap = node.styles.flexWrap || '';
-        // Respect CSS flexWrap if explicitly set, otherwise use sensible defaults
-        if (cssWrap === 'wrap') {
-          flex.wrap = 'wrap';
-        } else if (cssWrap === 'nowrap') {
-          flex.wrap = 'nowrap';
-        } else {
-          // Default: row = nowrap, column = wrap
-          flex.wrap = flex.dir === 'row' ? 'nowrap' : 'wrap';
-        }
+        const isFlexRow = flex.dir === 'row';
+        const cssWrap   = node.styles.flexWrap || '';
+        flex.wrap = cssWrap === 'nowrap' ? 'nowrap' : cssWrap === 'wrap' ? 'wrap' : (isFlexRow ? 'nowrap' : 'wrap');
 
         const ai = node.styles.alignItems || '';
         const aiVal = ai === 'center'                     ? 'center'
