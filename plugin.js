@@ -189,11 +189,16 @@ function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlB
           flex.dir = isButton ? 'row' : 'column';
         }
 
-        // flex-row uses nowrap by default (prevents overflow like shade rows)
-        // flex-column uses wrap to keep children inside
-        const isFlexRow = flex.dir === 'row';
-        const cssWrap   = node.styles.flexWrap || '';
-        flex.wrap = cssWrap === 'wrap' ? 'wrap' : (isFlexRow ? 'nowrap' : 'wrap');
+        const cssWrap = node.styles.flexWrap || '';
+        // Respect CSS flexWrap if explicitly set, otherwise use sensible defaults
+        if (cssWrap === 'wrap') {
+          flex.wrap = 'wrap';
+        } else if (cssWrap === 'nowrap') {
+          flex.wrap = 'nowrap';
+        } else {
+          // Default: row = nowrap, column = wrap
+          flex.wrap = flex.dir === 'row' ? 'nowrap' : 'wrap';
+        }
 
         const ai = node.styles.alignItems || '';
         const aiVal = ai === 'center'                     ? 'center'
