@@ -196,11 +196,15 @@ function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlB
         flex.wrap = cssWrap === 'wrap' ? 'wrap' : (isFlexRow ? 'nowrap' : 'wrap');
 
         const ai = node.styles.alignItems || '';
-        flex.alignItems = ai === 'center'                     ? 'center'
-                        : (ai === 'flex-end' || ai === 'end') ? 'end'
-                        : ai === 'stretch'                    ? 'stretch'
-                        : isButton                            ? 'center'
-                        : 'start';
+        const aiVal = ai === 'center'                     ? 'center'
+                    : (ai === 'flex-end' || ai === 'end') ? 'end'
+                    : ai === 'stretch'                    ? 'stretch'
+                    : isButton                            ? 'center'
+                    : 'start';
+        flex.alignItems = aiVal;
+        if (node.name && node.name.includes('shades-wrap')) {
+          console.log('[debug] shades-wrap flex.alignItems set to:', aiVal, 'ai was:', ai);
+        }
 
         const jc = node.styles.justifyContent || '';
         flex.justifyContent = jc === 'center'        ? 'center'
