@@ -234,8 +234,8 @@ function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlB
 
       // Apply margins after children are appended
       try {
-        childNodes.forEach(cn => {
-          const shape = (board.children || []).find(s => s.name === cn.name);
+        childNodes.forEach((cn, idx) => {
+          const shape = (board.children || [])[idx];
           if (!shape || !shape.layoutChild) return;
           const mt = parseFloat(cn.styles.marginTop)    || 0;
           const mb = parseFloat(cn.styles.marginBottom) || 0;
