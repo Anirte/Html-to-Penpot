@@ -53,29 +53,42 @@ function loadFile(event) {
   const reader = new FileReader();
   reader.onload = e => {
     document.getElementById('htmlIn').value = e.target.result;
-    localStorage.setItem('lastHtml', e.target.result);
-    localStorage.setItem('lastHtmlName', file.name);
+    saveSession();
     toast('HTML loaded: ' + file.name);
   };
   reader.readAsText(file);
   event.target.value = '';
 }
 
-function reloadLast() {
-  const html = localStorage.getItem('lastHtml');
-  const htmlName = localStorage.getItem('lastHtmlName');
-  const css = localStorage.getItem('lastCss');
-  const cssName = localStorage.getItem('lastCssName');
-  if (!html && !css) return toast('No files saved yet', '#e86060');
+function saveSession() {
+  const html = document.getElementById('htmlIn').value;
+  const css  = document.getElementById('cssIn').value;
   if (html) {
-    document.getElementById('htmlIn').value = html;
-    log('Reloaded: ' + (htmlName || 'HTML'));
+    localStorage.setItem('lastHtml', html);
+    localStorage.setItem('lastHtmlName', 'session.html');
   }
   if (css) {
-    document.getElementById('cssIn').value = css;
-    log('Reloaded: ' + (cssName || 'CSS'));
+    localStorage.setItem('lastCss', css);
+    localStorage.setItem('lastCssName', 'session.css');
   }
-  toast('Last files reloaded!');
+  localStorage.setItem('lastScripts', JSON.stringify(loadedScripts));
+}
+
+function reloadLast() {
+  const html    = localStorage.getItem('lastHtml');
+  const css     = localStorage.getItem('lastCss');
+  const scripts = localStorage.getItem('lastScripts');
+  if (!html && !css && !scripts) return toast('No session saved yet', '#e86060');
+  if (html) document.getElementById('htmlIn').value = html;
+  if (css)  document.getElementById('cssIn').value  = css;
+  if (scripts) {
+    try {
+      loadedScripts = JSON.parse(scripts);
+      renderJsList();
+    } catch(e) {}
+  }
+  log('Session reloaded: HTML' + (css ? ' + CSS' : '') + (loadedScripts.length ? ` + ${loadedScripts.length} JS` : ''));
+  toast('Session reloaded!');
 }
 
 function loadCssFile(event) {
@@ -84,8 +97,7 @@ function loadCssFile(event) {
   const reader = new FileReader();
   reader.onload = e => {
     document.getElementById('cssIn').value = e.target.result;
-    localStorage.setItem('lastCss', e.target.result);
-    localStorage.setItem('lastCssName', file.name);
+    saveSession();
     document.querySelectorAll('.tab').forEach((b, i) => b.classList.toggle('on', i === 1));
     ['html','css','opts'].forEach((t, i) => {
       document.getElementById('tab-' + t).style.display = i === 1 ? '' : 'none';
@@ -545,12 +557,12 @@ function loadJsFiles(event) {
   files.forEach(file => {
     const reader = new FileReader();
     reader.onload = e => {
-      // Remove duplicates by name
       loadedScripts = loadedScripts.filter(s => s.name !== file.name);
       loadedScripts.push({ name: file.name, content: e.target.result });
       loaded++;
       if (loaded === files.length) {
         renderJsList();
+        saveSession();
         toast(loaded + ' JS file(s) loaded');
       }
     };
