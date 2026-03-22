@@ -356,7 +356,9 @@ function parseIframe(opts) {
             if (isFlex || isGrid) {
               ['alignItems','justifyContent'].forEach(p => {
                 const v = computed[p];
-                if (v) styles[p] = v;
+                if (!v) return;
+                // 'normal' in flex = 'stretch' — pass it explicitly
+                styles[p] = (v === 'normal') ? 'stretch' : v;
               });
             } else {
               delete styles.flexDirection;
