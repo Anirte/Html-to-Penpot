@@ -101,7 +101,7 @@ function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlB
         parentBoard.appendChild(txt);
         try { if (txt.layoutChild) txt.layoutChild.horizontalSizing = 'fill'; } catch (e) {}
       }
-      return;
+      return txt;
     }
 
     // Leaf node
@@ -228,14 +228,15 @@ function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlB
 
       if (node.text && node.text.trim()) addTextChild(node, board, absX, absY);
 
+      // Build children and immediately apply layout properties
+      const childShapes = [];
       childNodes.forEach(child => {
-        buildNode(child, board, absX, absY, node.bounds.x, node.bounds.y, shapesWithMargin);
+        const shape = buildNode(child, board, absX, absY, node.bounds.x, node.bounds.y, shapesWithMargin);
+        childShapes.push({ node: child, shape });
       });
 
-      // Apply margins after children are appended
       try {
-        childNodes.forEach((cn, idx) => {
-          const shape = (board.children || [])[idx];
+        childShapes.forEach(({ node: cn, shape }) => {
           if (!shape || !shape.layoutChild) return;
           const mt = parseFloat(cn.styles.marginTop)    || 0;
           const mb = parseFloat(cn.styles.marginBottom) || 0;
@@ -247,8 +248,6 @@ function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlB
           shape.layoutChild.rightMargin  = mr;
           shape.layoutChild.bottomMargin = mb;
           shape.layoutChild.leftMargin   = ml;
-          // flexGrow > 0 means element fills available space
-          // direction depends on parent flex direction
           const fg = parseFloat(cn.styles.flexGrow) || 0;
           if (fg > 0) {
             const parentDir = node.styles.flexDirection || '';
@@ -267,8 +266,10 @@ function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlB
       }
     }
 
+    return board;
   } catch (err) {
     console.warn('[html-to-penpot] Failed:', node.name, err);
+    return null;
   }
 }
 
