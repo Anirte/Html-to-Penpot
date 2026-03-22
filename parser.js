@@ -369,9 +369,12 @@ function parseIframe(opts) {
               ['alignItems','justifyContent'].forEach(p => {
                 const v = computed[p];
                 if (!v) return;
-                // 'normal' in flex = 'stretch' — pass it explicitly
+                // 'normal' in flex context = 'stretch'
                 styles[p] = (v === 'normal') ? 'stretch' : v;
               });
+              if (el.className && el.className.toString().includes('shades-wrap')) {
+                console.log('[debug] shades-wrap alignItems sent:', styles.alignItems);
+              }
             } else {
               delete styles.flexDirection;
               delete styles.flexWrap;
