@@ -20,7 +20,7 @@ penpot.ui.onMessage(async (message) => {
       return;
     }
 
-    layoutQueue =[];
+    layoutQueue = [];
     marginQueue =[];
 
     const center = penpot.viewport.center;
@@ -88,24 +88,12 @@ penpot.ui.onMessage(async (message) => {
             const mItem = marginQueue.find(m => m.shape === child);
             if (mItem && child.layoutChild) {
 
-              // Записываем нужные отступы напрямую
+              // Мы задаем ТОЛЬКО 4 стороны.
+              // Мы ВООБЩЕ не трогаем verticalMargin и horizontalMargin, чтобы ничего не крашилось и не затиралось.
               child.layoutChild.topMargin    = mItem.mt;
               child.layoutChild.rightMargin  = mItem.mr;
               child.layoutChild.bottomMargin = mItem.mb;
               child.layoutChild.leftMargin   = mItem.ml;
-
-              // Если отступы симметричны, задаём объединённые переменные
-              // ВАЖНО: больше не задаем null, так как это вызывало сбой API
-              if (mItem.mt === mItem.mb) {
-                child.layoutChild.verticalMargin = mItem.mt;
-              }
-              if (mItem.ml === mItem.mr) {
-                child.layoutChild.horizontalMargin = mItem.ml;
-              }
-
-              // Пытаемся безопасно раскрыть отступы программно
-              try { child.layoutChild.marginExpanded = true; } catch(e){}
-              try { child.layoutChild.isMarginExpanded = true; } catch(e){}
 
               if (mItem.flexGrow > 0) {
                 if (mItem.parentDir.includes('column')) {
@@ -171,7 +159,7 @@ function buildNodePass1(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, 
         const lh = parseFloat(node.styles.lineHeight);
         if (!isNaN(lh) && lh > 0) txt.lineHeight = lh;
         const tc = parseCssColor(node.styles.color);
-        if (tc) txt.fills =[tc];
+        if (tc) txt.fills = [tc];
         parentBoard.appendChild(txt);
       }
       return txt;
@@ -198,7 +186,7 @@ function buildNodePass1(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, 
     board.resize(w, h);
 
     const bgFill = parseCssColor(node.styles.backgroundColor);
-    board.fills = bgFill ?[bgFill] :[];
+    board.fills = bgFill ? [bgFill] :[];
     applyBorderRadius(board, node.styles);
     applyStroke(board, node.styles);
     applyShadow(board, node.styles);
@@ -220,9 +208,8 @@ function buildNodePass1(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, 
 
     const childShapes =[];
 
-    // ИСПРАВЛЕНИЕ: Разворачиваем порядок дочерних элементов,
-    // чтобы Penpot строил их слева направо!
-    [...childNodes].reverse().forEach(child => {
+    // Возвращен правильный порядок: сверху-вниз, слева-направо!
+    childNodes.forEach(child => {
       const shape = buildNodePass1(child, board, absX, absY, node.bounds.x, node.bounds.y, depth + 1);
       childShapes.push({ node: child, shape });
     });
