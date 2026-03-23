@@ -233,12 +233,25 @@ function buildHtml() {
 }
 
 // ── Classify element: container / text / image / leaf
-function classifyElement(el, computed, visibleChildren, directText) {
+function classifyElement(el, computed, visibleChildren, directText, win) {
   if (el.tagName === 'HR') return 'leaf';
   if (IMAGE_TAGS.has(el.tagName)) return 'image';
   const bgImage = computed.backgroundImage || '';
   if (bgImage.includes('url(') && !bgImage.includes('gradient')) {
     if (visibleChildren.length === 0 && !directText) return 'image';
+  }
+  // If all children are inline/text, treat as text node — not container
+  // This preserves "Primary · Secondary" style inline text runs
+  if (visibleChildren.length > 0 && directText) {
+    const allInline = visibleChildren.every(child => {
+      const cs = win.getComputedStyle(child);
+      const d = cs.display;
+      return d === 'inline' || d === 'inline-block';
+    });
+    if (allInline) {
+      // Combine all text content into one text node
+      return 'text';
+    }
   }
   if (visibleChildren.length > 0) return 'container';
   // If element has text BUT also has a visible background or border-radius
@@ -391,7 +404,12 @@ function parseIframe(opts) {
             const directText = opts.incText ? getDirectText(el) : '';
 
             // Classify
-            const kind = classifyElement(el, computed, visibleChildren, directText);
+            const kind = classifyElement(el, computed, visibleChildren, directText, win);
+
+            // For inline-only containers reclassified as text, use full textContent
+            if (kind === 'text' && visibleChildren.length > 0) {
+              directText = el.textContent.trim();
+            }
 
             // Layer name
             const name = el.id
