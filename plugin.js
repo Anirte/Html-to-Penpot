@@ -72,11 +72,6 @@ penpot.ui.onMessage(async (message) => {
       try {
         const item = layoutQueue[i];
 
-        // Reset all children coords to parent origin — forces flex to recalculate
-        if (item.board.children) {
-          item.board.children.forEach(c => { c.x = item.board.x; c.y = item.board.y; });
-        }
-
         const flex = item.board.addFlexLayout();
         flex.dir            = item.config.dir;
         flex.wrap           = item.config.wrap;
