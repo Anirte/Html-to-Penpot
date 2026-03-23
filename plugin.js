@@ -176,26 +176,18 @@ function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlB
       }
 
     } else {
-      // Append to parent FIRST, then add flex layout
-      // (Penpot may lose layout if appendChild happens after addFlexLayout)
-      parentBoard.appendChild(board);
-
-      // Flex Layout for column/block containers
+      // Flex Layout for column/block containers — will be applied after children
+      let flexConfig = null;
       try {
-        const flex = board.addFlexLayout();
-
         const isCssFlex = node.styles.display === 'flex' || node.styles.display === 'inline-flex';
         const isButton  = node.tag === 'BUTTON' || node.tag === 'INPUT';
 
-        if (isCssFlex) {
-          flex.dir = (node.styles.flexDirection || '').includes('column') ? 'column' : 'row';
-        } else {
-          flex.dir = isButton ? 'row' : 'column';
-        }
+        const dir = isCssFlex
+          ? ((node.styles.flexDirection || '').includes('column') ? 'column' : 'row')
+          : (isButton ? 'row' : 'column');
 
-        const isFlexRow = flex.dir === 'row';
-        const cssWrap   = node.styles.flexWrap || '';
-        flex.wrap = cssWrap === 'nowrap' ? 'nowrap' : cssWrap === 'wrap' ? 'wrap' : (isFlexRow ? 'nowrap' : 'wrap');
+        const isFlexRow = dir === 'row';
+        const cssWrap = node.styles.flexWrap || '';
 
         const ai = node.styles.alignItems || '';
         const aiVal = ai === 'center'                     ? 'center'
@@ -203,28 +195,31 @@ function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlB
                     : ai === 'stretch'                    ? 'stretch'
                     : isButton                            ? 'center'
                     : 'start';
-        flex.alignItems = aiVal;
-        if (node.name && node.name.includes('shades-wrap')) {
-          console.log('[debug] shades-wrap flex.alignItems set to:', aiVal, 'ai was:', ai);
-        }
 
         const jc = node.styles.justifyContent || '';
-        flex.justifyContent = jc === 'center'        ? 'center'
-                            : jc === 'flex-end'      ? 'end'
-                            : jc === 'space-between' ? 'space-between'
-                            : jc === 'space-around'  ? 'space-around'
-                            : jc === 'space-evenly'  ? 'space-evenly'
-                            : isButton               ? 'center'
-                            : 'start';
+        const jcVal = jc === 'center'        ? 'center'
+                    : jc === 'flex-end'      ? 'end'
+                    : jc === 'space-between' ? 'space-between'
+                    : jc === 'space-around'  ? 'space-around'
+                    : jc === 'space-evenly'  ? 'space-evenly'
+                    : isButton               ? 'center'
+                    : 'start';
 
-        flex.topPadding    = parseFloat(node.styles.paddingTop)    || 0;
-        flex.rightPadding  = parseFloat(node.styles.paddingRight)  || 0;
-        flex.bottomPadding = parseFloat(node.styles.paddingBottom) || 0;
-        flex.leftPadding   = parseFloat(node.styles.paddingLeft)   || 0;
-        flex.rowGap    = parseFloat(node.styles.rowGap)    || parseFloat(node.styles.gap) || 0;
-        flex.columnGap = parseFloat(node.styles.columnGap) || parseFloat(node.styles.gap) || 0;
-
+        flexConfig = {
+          dir,
+          wrap: cssWrap === 'nowrap' ? 'nowrap' : cssWrap === 'wrap' ? 'wrap' : (isFlexRow ? 'nowrap' : 'wrap'),
+          alignItems: aiVal,
+          justifyContent: jcVal,
+          topPadding:    parseFloat(node.styles.paddingTop)    || 0,
+          rightPadding:  parseFloat(node.styles.paddingRight)  || 0,
+          bottomPadding: parseFloat(node.styles.paddingBottom) || 0,
+          leftPadding:   parseFloat(node.styles.paddingLeft)   || 0,
+          rowGap:    parseFloat(node.styles.rowGap)    || parseFloat(node.styles.gap) || 0,
+          columnGap: parseFloat(node.styles.columnGap) || parseFloat(node.styles.gap) || 0,
+        };
       } catch (e) {}
+
+      parentBoard.appendChild(board);
 
       // Build children and immediately apply layout properties
       const childShapes = [];
@@ -265,6 +260,23 @@ function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlB
 
       // Add inline text AFTER children so appendChild order is correct
       if (node.text && node.text.trim()) addTextChild(node, board, absX, absY);
+
+      // Apply flex AFTER all children are added — Penpot needs children present
+      if (flexConfig) {
+        try {
+          const flex = board.addFlexLayout();
+          flex.dir            = flexConfig.dir;
+          flex.wrap           = flexConfig.wrap;
+          flex.alignItems     = flexConfig.alignItems;
+          flex.justifyContent = flexConfig.justifyContent;
+          flex.topPadding     = flexConfig.topPadding;
+          flex.rightPadding   = flexConfig.rightPadding;
+          flex.bottomPadding  = flexConfig.bottomPadding;
+          flex.leftPadding    = flexConfig.leftPadding;
+          flex.rowGap         = flexConfig.rowGap;
+          flex.columnGap      = flexConfig.columnGap;
+        } catch (e) {}
+      }
     }
 
     return board;
