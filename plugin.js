@@ -163,13 +163,16 @@ function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlB
         if (node.text && node.text.trim()) addTextChild(node, board, absX, absY);
 
         // Sort children left-to-right by x position before placing in grid
+        // Reverse iteration — Penpot appendChild prepends
         const sortedChildren = [...childNodes].sort((a, b) => a.bounds.x - b.bounds.x);
-        sortedChildren.forEach((child, idx) => {
+        for (let i = sortedChildren.length - 1; i >= 0; i--) {
+          const child = sortedChildren[i];
+          const idx = i;
           const shape = buildNodeReturnShape(child, board, absX, absY, node.bounds.x, node.bounds.y);
           if (shape) {
             try { grid.appendChild(shape, 0, idx); } catch (e) {}
           }
-        });
+        }
 
       } catch (e) {
         console.warn('[grid] error:', e.message);
@@ -226,12 +229,14 @@ function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlB
 
       if (node.text && node.text.trim()) addTextChild(node, board, absX, absY);
 
-      // Build children and immediately apply layout properties
+      // Build children in reverse order — Penpot appendChild prepends,
+      // so reversing gives correct visual order
       const childShapes = [];
-      childNodes.forEach(child => {
+      for (let i = childNodes.length - 1; i >= 0; i--) {
+        const child = childNodes[i];
         const shape = buildNode(child, board, absX, absY, node.bounds.x, node.bounds.y, shapesWithMargin);
-        childShapes.push({ node: child, shape });
-      });
+        childShapes.unshift({ node: child, shape });
+      }
 
       try {
         childShapes.forEach(({ node: cn, shape }) => {
@@ -360,9 +365,10 @@ function buildNodeReturnShape(node, parentBoard, canvasBaseX, canvasBaseY, htmlB
 
     if (node.text && node.text.trim()) addTextChild(node, board, absX, absY);
 
-    (node.children || []).forEach(child => {
-      buildNode(child, board, absX, absY, node.bounds.x, node.bounds.y);
-    });
+    const subChildren = node.children || [];
+    for (let i = subChildren.length - 1; i >= 0; i--) {
+      buildNode(subChildren[i], board, absX, absY, node.bounds.x, node.bounds.y);
+    }
 
     return board;
 
