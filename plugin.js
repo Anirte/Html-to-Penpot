@@ -394,6 +394,7 @@ function addTextChild(node, board, absX, absY) {
   txt.x          = absX;
   txt.y          = absY;
   txt.growType   = 'auto-height';
+  txt.resize(Math.max(1, node.bounds.width), Math.max(1, node.bounds.height));
   txt.fontFamily = resolveFont(node.styles.fontFamily);
   txt.fontSize   = String(Math.round(parseFloat(node.styles.fontSize) || 14));
   txt.fontWeight = safeWeight(node.styles.fontWeight);
