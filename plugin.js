@@ -49,7 +49,7 @@ penpot.ui.onMessage(async (message) => {
     const shapesWithMargin = []; // collect shapes that need margin fix
 
     for (const node of nodes) {
-      buildNode(node, rootBoard, rootBoard.x + PAD, rootBoard.y + PAD, minX, minY, shapesWithMargin);
+      await buildNode(node, rootBoard, rootBoard.x + PAD, rootBoard.y + PAD, minX, minY, shapesWithMargin);
       totalCreated++;
     }
 
@@ -72,7 +72,7 @@ function shouldUseGrid(node) {
   return node.styles.display === 'grid' || node.styles.display === 'inline-grid';
 }
 
-function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlBaseY, shapesWithMargin) {
+async function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlBaseY, shapesWithMargin) {
   if (!shapesWithMargin) shapesWithMargin = [];
   try {
     const relX = node.bounds.x - htmlBaseX;
@@ -221,7 +221,10 @@ function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlB
 
       parentBoard.appendChild(board);
 
-      // Apply flex BEFORE children — so children get layoutChild immediately
+      // Small delay to let Penpot process appendChild
+      await new Promise(r => setTimeout(r, 0));
+
+      // Apply flex AFTER appendChild — so Penpot registers the board
       if (flexConfig) {
         try {
           const flex = board.addFlexLayout();
@@ -242,10 +245,10 @@ function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlB
 
       // Build children and immediately apply layout properties
       const childShapes = [];
-      childNodes.forEach(child => {
-        const shape = buildNode(child, board, absX, absY, node.bounds.x, node.bounds.y, shapesWithMargin);
+      for (const child of childNodes) {
+        const shape = await buildNode(child, board, absX, absY, node.bounds.x, node.bounds.y, shapesWithMargin);
         childShapes.push({ node: child, shape });
-      });
+      }
 
       // Add inline text AFTER children so appendChild order is correct
       if (node.text && node.text.trim()) addTextChild(node, board, absX, absY);
