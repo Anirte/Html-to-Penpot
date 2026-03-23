@@ -64,6 +64,10 @@ penpot.ui.onMessage(async (message) => {
 
   // ═══════════════════════════════════════ PASS 2: Apply flex + reset children coords + margins
   if (message.type === 'APPLY_FLEX_BATCH') {
+    // Sort by depth descending on first batch — deepest boards first
+    if (message.start === 0) {
+      layoutQueue.sort((a, b) => b.depth - a.depth);
+    }
     const start = message.start || 0;
     const end = Math.min(start + BATCH_SIZE, layoutQueue.length);
     let applied = 0;
@@ -71,6 +75,11 @@ penpot.ui.onMessage(async (message) => {
     for (let i = start; i < end; i++) {
       try {
         const item = layoutQueue[i];
+
+        // Reset children coords to parent origin — forces flex to recalculate
+        if (item.board.children) {
+          item.board.children.forEach(c => { c.x = item.board.x; c.y = item.board.y; });
+        }
 
         const flex = item.board.addFlexLayout();
         flex.dir            = item.config.dir;
@@ -137,7 +146,8 @@ function shouldUseGrid(node) {
   return node.styles.display === 'grid' || node.styles.display === 'inline-grid';
 }
 
-function buildNodePass1(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlBaseY) {
+function buildNodePass1(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlBaseY, depth) {
+  if (depth === undefined) depth = 0;
   try {
     const relX = node.bounds.x - htmlBaseX;
     const relY = node.bounds.y - htmlBaseY;
@@ -203,13 +213,13 @@ function buildNodePass1(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, 
     if (!useGrid) {
       const flexConfig = computeFlexConfig(node);
       if (flexConfig) {
-        layoutQueue.push({ board, config: flexConfig });
+        layoutQueue.push({ board, config: flexConfig, depth });
       }
     }
 
     const childShapes = [];
     childNodes.forEach(child => {
-      const shape = buildNodePass1(child, board, absX, absY, node.bounds.x, node.bounds.y);
+      const shape = buildNodePass1(child, board, absX, absY, node.bounds.x, node.bounds.y, depth + 1);
       childShapes.push({ node: child, shape });
     });
 
