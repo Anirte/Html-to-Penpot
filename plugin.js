@@ -163,16 +163,13 @@ function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlB
         if (node.text && node.text.trim()) addTextChild(node, board, absX, absY);
 
         // Sort children left-to-right by x position before placing in grid
-        // Reverse iteration — Penpot appendChild prepends
         const sortedChildren = [...childNodes].sort((a, b) => a.bounds.x - b.bounds.x);
-        for (let i = sortedChildren.length - 1; i >= 0; i--) {
-          const child = sortedChildren[i];
-          const idx = i;
+        sortedChildren.forEach((child, idx) => {
           const shape = buildNodeReturnShape(child, board, absX, absY, node.bounds.x, node.bounds.y);
           if (shape) {
             try { grid.appendChild(shape, 0, idx); } catch (e) {}
           }
-        }
+        });
 
       } catch (e) {
         console.warn('[grid] error:', e.message);
@@ -229,14 +226,12 @@ function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlB
 
       if (node.text && node.text.trim()) addTextChild(node, board, absX, absY);
 
-      // Build children in reverse order — Penpot appendChild prepends,
-      // so reversing gives correct visual order
+      // Build children and immediately apply layout properties
       const childShapes = [];
-      for (let i = childNodes.length - 1; i >= 0; i--) {
-        const child = childNodes[i];
+      childNodes.forEach(child => {
         const shape = buildNode(child, board, absX, absY, node.bounds.x, node.bounds.y, shapesWithMargin);
-        childShapes.unshift({ node: child, shape });
-      }
+        childShapes.push({ node: child, shape });
+      });
 
       try {
         childShapes.forEach(({ node: cn, shape }) => {
@@ -365,10 +360,9 @@ function buildNodeReturnShape(node, parentBoard, canvasBaseX, canvasBaseY, htmlB
 
     if (node.text && node.text.trim()) addTextChild(node, board, absX, absY);
 
-    const subChildren = node.children || [];
-    for (let i = subChildren.length - 1; i >= 0; i--) {
-      buildNode(subChildren[i], board, absX, absY, node.bounds.x, node.bounds.y);
-    }
+    (node.children || []).forEach(child => {
+      buildNode(child, board, absX, absY, node.bounds.x, node.bounds.y);
+    });
 
     return board;
 
