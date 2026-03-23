@@ -46,16 +46,24 @@ penpot.ui.onMessage(async (message) => {
     rootBoard.fills = [];
 
     let totalCreated = 0;
-    const shapesWithMargin = []; // collect shapes that need margin fix
+    const shapesWithMargin = [];
+
+    console.log('[START] Building', nodes.length, 'root nodes');
 
     for (const node of nodes) {
-      await buildNode(node, rootBoard, rootBoard.x + PAD, rootBoard.y + PAD, minX, minY, shapesWithMargin);
+      console.log('[ROOT] >>>', node.name);
+      await buildNode(node, rootBoard, rootBoard.x + PAD, rootBoard.y + PAD, minX, minY, shapesWithMargin, 0);
       totalCreated++;
+      console.log('[ROOT] <<< done:', node.name);
     }
 
-    // if (shapesWithMargin.length > 0) {
-    //   try { penpot.selection = shapesWithMargin; } catch (e) {}
-    // }
+    console.log('[DONE] Total created:', totalCreated, 'margins:', shapesWithMargin.length);
+
+    if (shapesWithMargin.length > 0) {
+      try { penpot.selection = shapesWithMargin; } catch (e) {}
+    }
+
+    console.log('[SEND] Sending DONE message');
 
     penpot.ui.sendMessage({
       type: 'DONE',
@@ -68,12 +76,12 @@ penpot.ui.onMessage(async (message) => {
 });
 
 function shouldUseGrid(node) {
-  // Only use Grid when CSS explicitly says display:grid
   return node.styles.display === 'grid' || node.styles.display === 'inline-grid';
 }
 
-async function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlBaseY, shapesWithMargin) {
+async function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlBaseY, shapesWithMargin, depth) {
   if (!shapesWithMargin) shapesWithMargin = [];
+  if (depth === undefined) depth = 0;
   try {
     const relX = node.bounds.x - htmlBaseX;
     const relY = node.bounds.y - htmlBaseY;
@@ -116,7 +124,6 @@ async function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX,
       applyBorderRadius(rect, node.styles);
       applyStroke(rect, node.styles);
       parentBoard.appendChild(rect);
-      // HR stretches to fill parent width
       if (node.tag === 'HR') {
         try { if (rect.layoutChild) rect.layoutChild.horizontalSizing = 'fill'; } catch(e) {}
       }
@@ -143,7 +150,6 @@ async function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX,
     const useGrid    = shouldUseGrid(node);
 
     if (useGrid) {
-      // Grid Layout: 1 row + N columns of type "flex" (= 1fr each)
       try {
         const grid = board.addGridLayout();
         grid.dir           = 'row';
@@ -157,12 +163,10 @@ async function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX,
         grid.addRow('auto');
         childNodes.forEach(() => grid.addColumn('flex', 1));
 
-        // Append board to parent first, then fill grid cells
         parentBoard.appendChild(board);
 
         if (node.text && node.text.trim()) addTextChild(node, board, absX, absY);
 
-        // Sort children left-to-right by x position before placing in grid
         const sortedChildren = [...childNodes].sort((a, b) => a.bounds.x - b.bounds.x);
         sortedChildren.forEach((child, idx) => {
           const shape = buildNodeReturnShape(child, board, absX, absY, node.bounds.x, node.bounds.y);
@@ -176,7 +180,7 @@ async function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX,
       }
 
     } else {
-      // Flex Layout for column/block containers — will be applied after children
+      // Flex config
       let flexConfig = null;
       try {
         const isCssFlex = node.styles.display === 'flex' || node.styles.display === 'inline-flex';
@@ -219,9 +223,10 @@ async function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX,
         };
       } catch (e) {}
 
+      // Step 1: appendChild to parent
       parentBoard.appendChild(board);
 
-      // Apply flex AFTER appendChild — so Penpot registers the board
+      // Step 2: Apply flex
       if (flexConfig) {
         try {
           const flex = board.addFlexLayout();
@@ -235,22 +240,23 @@ async function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX,
           flex.leftPadding    = flexConfig.leftPadding;
           flex.rowGap         = flexConfig.rowGap;
           flex.columnGap      = flexConfig.columnGap;
+          console.log('[FLEX] d=' + depth, node.name, 'dir=' + flexConfig.dir);
         } catch (e) {
           console.warn('[FLEX-FAIL]', node.name, e.message);
         }
       }
 
-      // Build children and immediately apply layout properties
+      // Step 3: Build children
       const childShapes = [];
       for (const child of childNodes) {
-        const shape = await buildNode(child, board, absX, absY, node.bounds.x, node.bounds.y, shapesWithMargin);
+        const shape = await buildNode(child, board, absX, absY, node.bounds.x, node.bounds.y, shapesWithMargin, depth + 1);
         childShapes.push({ node: child, shape });
       }
 
-      // Add inline text AFTER children so appendChild order is correct
+      // Step 4: Inline text after children
       if (node.text && node.text.trim()) addTextChild(node, board, absX, absY);
 
-      // Apply margins AFTER flex — layoutChild is only available once parent has layout
+      // Step 5: Margins
       try {
         childShapes.forEach(({ node: cn, shape }) => {
           if (!shape || !shape.layoutChild) return;
@@ -280,6 +286,8 @@ async function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX,
       } catch (e) {
         console.warn('[margin] error:', e.message);
       }
+
+      console.log('[BUILT] d=' + depth, node.name, 'children=' + childShapes.length);
     }
 
     return board;
@@ -289,8 +297,7 @@ async function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX,
   }
 }
 
-// Build a node and return the shape — used by Grid Layout to get the shape
-// reference before placing it into a grid cell.
+// Build a node and return the shape — used by Grid Layout
 function buildNodeReturnShape(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlBaseY) {
   try {
     const relX = node.bounds.x - htmlBaseX;
@@ -373,6 +380,8 @@ function buildNodeReturnShape(node, parentBoard, canvasBaseX, canvasBaseY, htmlB
       flex.rowGap    = parseFloat(node.styles.rowGap)    || parseFloat(node.styles.gap) || 0;
       flex.columnGap = parseFloat(node.styles.columnGap) || parseFloat(node.styles.gap) || 0;
     } catch (e) {}
+
+    parentBoard.appendChild(board);
 
     if (node.text && node.text.trim()) addTextChild(node, board, absX, absY);
 
