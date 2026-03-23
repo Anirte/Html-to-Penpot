@@ -86,15 +86,7 @@ penpot.ui.onMessage(async (message) => {
       } catch (e) {}
     }
 
-    penpot.ui.sendMessage({
-      type: 'PASS2_DONE',
-      flexApplied,
-      marginCount: marginQueue.length
-    });
-  }
-
-  // ═══════════════════════════════════════ PASS 3: Apply margins
-  if (message.type === 'APPLY_MARGINS') {
+    // Apply margins in same pass as flex
     let marginApplied = 0;
     const shapesWithMargin = [];
 
@@ -130,7 +122,7 @@ penpot.ui.onMessage(async (message) => {
 
     penpot.ui.sendMessage({
       type: 'DONE',
-      count: marginApplied,
+      count: flexApplied,
       needsMarginFix: shapesWithMargin.length > 0,
       marginCount: shapesWithMargin.length
     });
