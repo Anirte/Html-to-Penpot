@@ -534,33 +534,11 @@ window.addEventListener('message', event => {
     }, 50);
   }
 
-  // All flex done — start margin batches
-  if (event.data.type === 'FLEX_ALL_DONE') {
-    log(`✓ Pass 2: ${event.data.applied} flex layouts applied`);
-    btn.textContent = 'Margins: 0/' + event.data.marginCount;
-    setTimeout(() => {
-      parent.postMessage({ type: 'APPLY_MARGIN_BATCH', start: 0 }, '*');
-    }, 300);
-  }
-
-  // Margin batch done — send next batch
-  if (event.data.type === 'MARGIN_BATCH_DONE') {
-    btn.textContent = 'Margins: ' + event.data.next + '/' + event.data.total;
-    setTimeout(() => {
-      parent.postMessage({ type: 'APPLY_MARGIN_BATCH', start: event.data.next }, '*');
-    }, 50);
-  }
-
   // All done
   if (event.data.type === 'DONE') {
     btn.disabled    = false;
     btn.textContent = 'Generate in Penpot';
     log(`✓ All done!`);
-    if (event.data.needsMarginFix) {
-      log(`⚠ ${event.data.marginCount} elements with margins selected.`);
-      log('→ Click "Copy margin fix" then open F12 → Ctrl+V → Enter');
-      document.getElementById('marginFixBtn').style.display = 'block';
-    }
     toast(`✓ All done!`);
   }
 

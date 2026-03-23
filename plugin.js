@@ -62,7 +62,7 @@ penpot.ui.onMessage(async (message) => {
     });
   }
 
-  // ═══════════════════════════════════════ PASS 2: Apply flex in batches
+  // ═══════════════════════════════════════ PASS 2: Apply flex + reset children coords + margins
   if (message.type === 'APPLY_FLEX_BATCH') {
     const start = message.start || 0;
     const end = Math.min(start + BATCH_SIZE, layoutQueue.length);
@@ -71,6 +71,12 @@ penpot.ui.onMessage(async (message) => {
     for (let i = start; i < end; i++) {
       try {
         const item = layoutQueue[i];
+
+        // Reset all children coords to parent origin — forces flex to recalculate
+        if (item.board.children) {
+          item.board.children.forEach(c => { c.x = item.board.x; c.y = item.board.y; });
+        }
+
         const flex = item.board.addFlexLayout();
         flex.dir            = item.config.dir;
         flex.wrap           = item.config.wrap;
@@ -82,75 +88,46 @@ penpot.ui.onMessage(async (message) => {
         flex.leftPadding    = item.config.leftPadding;
         flex.rowGap         = item.config.rowGap;
         flex.columnGap      = item.config.columnGap;
+
+        // Apply margins to children of this board immediately
+        if (item.board.children) {
+          item.board.children.forEach(child => {
+            const mItem = marginQueue.find(m => m.shape === child);
+            if (mItem && child.layoutChild) {
+              child.layoutChild.verticalMargin   = 0;
+              child.layoutChild.horizontalMargin = 0;
+              child.layoutChild.topMargin    = mItem.mt;
+              child.layoutChild.rightMargin  = mItem.mr;
+              child.layoutChild.bottomMargin = mItem.mb;
+              child.layoutChild.leftMargin   = mItem.ml;
+              if (mItem.flexGrow > 0) {
+                if (mItem.parentDir.includes('column')) {
+                  child.layoutChild.verticalSizing = 'fill';
+                } else {
+                  child.layoutChild.horizontalSizing = 'fill';
+                }
+              }
+            }
+          });
+        }
+
         applied++;
       } catch (e) {}
     }
 
     if (end < layoutQueue.length) {
-      // More to do
       penpot.ui.sendMessage({
         type: 'FLEX_BATCH_DONE',
         next: end,
         total: layoutQueue.length
       });
     } else {
-      // All flex done, start margins
-      penpot.ui.sendMessage({
-        type: 'FLEX_ALL_DONE',
-        applied,
-        marginCount: marginQueue.length
-      });
-    }
-  }
-
-  // ═══════════════════════════════════════ PASS 3: Apply margins in batches
-  if (message.type === 'APPLY_MARGIN_BATCH') {
-    const start = message.start || 0;
-    const end = Math.min(start + BATCH_SIZE, marginQueue.length);
-    const shapesWithMargin = [];
-
-    for (let i = start; i < end; i++) {
-      try {
-        const item = marginQueue[i];
-        if (!item.shape || !item.shape.layoutChild) continue;
-        item.shape.layoutChild.verticalMargin   = 0;
-        item.shape.layoutChild.horizontalMargin = 0;
-        item.shape.layoutChild.topMargin    = item.mt;
-        item.shape.layoutChild.rightMargin  = item.mr;
-        item.shape.layoutChild.bottomMargin = item.mb;
-        item.shape.layoutChild.leftMargin   = item.ml;
-        if (item.flexGrow > 0) {
-          if (item.parentDir.includes('column')) {
-            item.shape.layoutChild.verticalSizing = 'fill';
-          } else {
-            item.shape.layoutChild.horizontalSizing = 'fill';
-          }
-        }
-        if (item.mt !== 0 || item.mb !== 0 || item.ml !== 0 || item.mr !== 0) {
-          shapesWithMargin.push(item.shape);
-        }
-      } catch (e) {}
-    }
-
-    if (end < marginQueue.length) {
-      penpot.ui.sendMessage({
-        type: 'MARGIN_BATCH_DONE',
-        next: end,
-        total: marginQueue.length
-      });
-    } else {
-      // All done
-      if (shapesWithMargin.length > 0) {
-        try { penpot.selection = shapesWithMargin; } catch (e) {}
-      }
-
       layoutQueue = [];
       marginQueue = [];
-
       penpot.ui.sendMessage({
         type: 'DONE',
-        needsMarginFix: shapesWithMargin.length > 0,
-        marginCount: shapesWithMargin.length
+        needsMarginFix: false,
+        marginCount: 0
       });
     }
   }
