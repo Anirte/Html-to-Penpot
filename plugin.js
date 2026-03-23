@@ -11,8 +11,8 @@
  */
 
 penpot.ui.open('HTML to Penpot', `?theme=${penpot.theme}`, {
-  width: 520,
-  height: 700,
+  width: 510,
+  height: 800,
 });
 
 penpot.ui.onMessage(async (message) => {
