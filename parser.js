@@ -513,21 +513,25 @@ async function generate() {
   }
 }
 
-// ── Response from plugin.js (2-pass protocol)
+// ── Response from plugin.js (2-pass protocol with batched timer)
 window.addEventListener('message', event => {
   const btn = document.getElementById('genBtn');
 
   // Pass 1 done — shapes created, now apply flex + margins
   if (event.data.type === 'PASS1_DONE') {
-    log(`✓ Pass 1: ${event.data.count} elements created (${event.data.layoutCount} layouts queued)`);
+    log(`✓ Pass 1: ${event.data.count} elements created (${event.data.layoutCount} layouts, ${event.data.marginCount} margins queued)`);
     btn.textContent = 'Applying layout…';
-    // Delay to let Penpot commit the shapes
     setTimeout(() => {
       parent.postMessage({ type: 'APPLY_LAYOUT' }, '*');
     }, 300);
   }
 
-  // Pass 2 done — all complete
+  // Progress updates during batched apply
+  if (event.data.type === 'PROGRESS') {
+    btn.textContent = `${event.data.phase}: ${event.data.current}/${event.data.total}`;
+  }
+
+  // All done
   if (event.data.type === 'DONE') {
     btn.disabled    = false;
     btn.textContent = 'Generate in Penpot';
@@ -535,7 +539,6 @@ window.addEventListener('message', event => {
     if (event.data.needsMarginFix) {
       log(`⚠ ${event.data.marginCount} elements with margins selected.`);
       log('→ Click "Copy margin fix" then open F12 → Ctrl+V → Enter');
-      log('⏱ Complex layouts may take 1-2 min to apply — wait for "✓ Margin fix applied!" in console.');
       document.getElementById('marginFixBtn').style.display = 'block';
       toast(`✓ All done!`);
     } else {

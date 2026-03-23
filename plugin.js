@@ -65,67 +65,106 @@ penpot.ui.onMessage(async (message) => {
     });
   }
 
-  // ═══════════════════════════════════════ PASS 2: Apply flex layouts
+  // ═══════════════════════════════════════ PASS 2: Apply flex+margins via batched timer
   if (message.type === 'APPLY_LAYOUT') {
+    const BATCH_SIZE = 1;  // Start with 1 to be safe, can increase later
+    const TICK_MS = 16;     // ~60fps
+    let flexIdx = 0;
+    let marginIdx = 0;
     let flexApplied = 0;
-
-    for (const item of layoutQueue) {
-      try {
-        const flex = item.board.addFlexLayout();
-        flex.dir            = item.config.dir;
-        flex.wrap           = item.config.wrap;
-        flex.alignItems     = item.config.alignItems;
-        flex.justifyContent = item.config.justifyContent;
-        flex.topPadding     = item.config.topPadding;
-        flex.rightPadding   = item.config.rightPadding;
-        flex.bottomPadding  = item.config.bottomPadding;
-        flex.leftPadding    = item.config.leftPadding;
-        flex.rowGap         = item.config.rowGap;
-        flex.columnGap      = item.config.columnGap;
-        flexApplied++;
-      } catch (e) {}
-    }
-
-    // Apply margins in same pass as flex
-    let marginApplied = 0;
     const shapesWithMargin = [];
 
-    for (const item of marginQueue) {
-      try {
-        if (!item.shape || !item.shape.layoutChild) continue;
-        item.shape.layoutChild.verticalMargin   = 0;
-        item.shape.layoutChild.horizontalMargin = 0;
-        item.shape.layoutChild.topMargin    = item.mt;
-        item.shape.layoutChild.rightMargin  = item.mr;
-        item.shape.layoutChild.bottomMargin = item.mb;
-        item.shape.layoutChild.leftMargin   = item.ml;
-        if (item.flexGrow > 0) {
-          if (item.parentDir.includes('column')) {
-            item.shape.layoutChild.verticalSizing = 'fill';
-          } else {
-            item.shape.layoutChild.horizontalSizing = 'fill';
-          }
-        }
-        if (item.mt !== 0 || item.mb !== 0 || item.ml !== 0 || item.mr !== 0) {
-          shapesWithMargin.push(item.shape);
-          marginApplied++;
-        }
-      } catch (e) {}
-    }
+    // Phase A: apply flex layouts in batches
+    const flexTimer = setInterval(() => {
+      const end = Math.min(flexIdx + BATCH_SIZE, layoutQueue.length);
+      for (let i = flexIdx; i < end; i++) {
+        try {
+          const item = layoutQueue[i];
+          const flex = item.board.addFlexLayout();
+          flex.dir            = item.config.dir;
+          flex.wrap           = item.config.wrap;
+          flex.alignItems     = item.config.alignItems;
+          flex.justifyContent = item.config.justifyContent;
+          flex.topPadding     = item.config.topPadding;
+          flex.rightPadding   = item.config.rightPadding;
+          flex.bottomPadding  = item.config.bottomPadding;
+          flex.leftPadding    = item.config.leftPadding;
+          flex.rowGap         = item.config.rowGap;
+          flex.columnGap      = item.config.columnGap;
+          flexApplied++;
+        } catch (e) {}
+      }
+      flexIdx = end;
 
-    if (shapesWithMargin.length > 0) {
-      try { penpot.selection = shapesWithMargin; } catch (e) {}
-    }
+      // Report progress
+      penpot.ui.sendMessage({
+        type: 'PROGRESS',
+        phase: 'flex',
+        current: flexIdx,
+        total: layoutQueue.length
+      });
 
-    layoutQueue = [];
-    marginQueue = [];
+      // Flex done — start margins phase
+      if (flexIdx >= layoutQueue.length) {
+        clearInterval(flexTimer);
 
-    penpot.ui.sendMessage({
-      type: 'DONE',
-      count: flexApplied,
-      needsMarginFix: shapesWithMargin.length > 0,
-      marginCount: shapesWithMargin.length
-    });
+        // Small pause before margins
+        setTimeout(() => {
+          const marginTimer = setInterval(() => {
+            const mEnd = Math.min(marginIdx + BATCH_SIZE, marginQueue.length);
+            for (let i = marginIdx; i < mEnd; i++) {
+              try {
+                const item = marginQueue[i];
+                if (!item.shape || !item.shape.layoutChild) continue;
+                item.shape.layoutChild.verticalMargin   = 0;
+                item.shape.layoutChild.horizontalMargin = 0;
+                item.shape.layoutChild.topMargin    = item.mt;
+                item.shape.layoutChild.rightMargin  = item.mr;
+                item.shape.layoutChild.bottomMargin = item.mb;
+                item.shape.layoutChild.leftMargin   = item.ml;
+                if (item.flexGrow > 0) {
+                  if (item.parentDir.includes('column')) {
+                    item.shape.layoutChild.verticalSizing = 'fill';
+                  } else {
+                    item.shape.layoutChild.horizontalSizing = 'fill';
+                  }
+                }
+                if (item.mt !== 0 || item.mb !== 0 || item.ml !== 0 || item.mr !== 0) {
+                  shapesWithMargin.push(item.shape);
+                }
+              } catch (e) {}
+            }
+            marginIdx = mEnd;
+
+            penpot.ui.sendMessage({
+              type: 'PROGRESS',
+              phase: 'margins',
+              current: marginIdx,
+              total: marginQueue.length
+            });
+
+            // All done
+            if (marginIdx >= marginQueue.length) {
+              clearInterval(marginTimer);
+
+              if (shapesWithMargin.length > 0) {
+                try { penpot.selection = shapesWithMargin; } catch (e) {}
+              }
+
+              layoutQueue = [];
+              marginQueue = [];
+
+              penpot.ui.sendMessage({
+                type: 'DONE',
+                count: flexApplied,
+                needsMarginFix: shapesWithMargin.length > 0,
+                marginCount: shapesWithMargin.length
+              });
+            }
+          }, TICK_MS);
+        }, 100);
+      }
+    }, TICK_MS);
   }
 
 });
