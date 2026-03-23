@@ -245,7 +245,9 @@ function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlB
           flex.leftPadding    = flexConfig.leftPadding;
           flex.rowGap         = flexConfig.rowGap;
           flex.columnGap      = flexConfig.columnGap;
-        } catch (e) {}
+        } catch (e) {
+          console.warn('[FLEX-FAIL]', node.name, e.message);
+        }
       }
 
       // Apply margins AFTER flex — layoutChild is only available once parent has layout
