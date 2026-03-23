@@ -53,9 +53,9 @@ penpot.ui.onMessage(async (message) => {
       totalCreated++;
     }
 
-    if (shapesWithMargin.length > 0) {
-      try { penpot.selection = shapesWithMargin; } catch (e) {}
-    }
+    // if (shapesWithMargin.length > 0) {
+    //   try { penpot.selection = shapesWithMargin; } catch (e) {}
+    // }
 
     penpot.ui.sendMessage({
       type: 'DONE',
