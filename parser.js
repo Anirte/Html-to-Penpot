@@ -240,18 +240,17 @@ function classifyElement(el, computed, visibleChildren, directText, win) {
   if (bgImage.includes('url(') && !bgImage.includes('gradient')) {
     if (visibleChildren.length === 0 && !directText) return 'image';
   }
-  // If all children are inline/text, treat as text node — not container
-  // This preserves "Primary · Secondary" style inline text runs
-  if (visibleChildren.length > 0 && directText) {
+  // For flex/inline-flex containers where ALL children are inline,
+  // merge into a single text node (e.g. ct-row: dot + "Lc75")
+  // Skip for block/inline-block — those need container structure preserved
+  const disp = computed.display;
+  if ((disp === 'flex' || disp === 'inline-flex') && visibleChildren.length > 0 && directText) {
     const allInline = visibleChildren.every(child => {
       const cs = win.getComputedStyle(child);
       const d = cs.display;
       return d === 'inline' || d === 'inline-block';
     });
-    if (allInline) {
-      // Combine all text content into one text node
-      return 'text';
-    }
+    if (allInline) return 'text';
   }
   if (visibleChildren.length > 0) return 'container';
   // If element has text BUT also has a visible background or border-radius
