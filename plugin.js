@@ -221,9 +221,6 @@ async function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX,
 
       parentBoard.appendChild(board);
 
-      // Small delay to let Penpot process appendChild
-      await new Promise(r => setTimeout(r, 0));
-
       // Apply flex AFTER appendChild — so Penpot registers the board
       if (flexConfig) {
         try {
