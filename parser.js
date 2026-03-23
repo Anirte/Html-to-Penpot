@@ -43,6 +43,7 @@ function clearAll() {
   document.getElementById('htmlIn').value = '';
   document.getElementById('cssIn').value  = '';
   document.getElementById('stats').classList.remove('show');
+  document.getElementById('marginFixBtn').style.display = 'none'; // Скрываем кнопку фикса
   clearLog();
 }
 
@@ -143,7 +144,7 @@ const SKIP_TAGS = new Set([
 
 const IMAGE_TAGS = new Set(['IMG','PICTURE','VIDEO']);
 
-const STYLE_PROPS = [
+const STYLE_PROPS =[
   'backgroundColor','color',
   'fontSize','fontFamily','fontWeight','lineHeight',
   'borderRadius',
@@ -173,18 +174,14 @@ function buildHtml() {
   const css = document.getElementById('cssIn').value.trim();
   if (!html) return null;
 
-  // Extract base URL from any <script src> or <link href> in the HTML
-  // so that relative paths load correctly inside srcdoc iframe
   let baseUrl = '';
   const srcMatch = html.match(/src=["']([^"']+\/)[^"']*["']/);
   const hrefMatch = html.match(/href=["']([^"']+\/)[^"']*\.css["']/);
   if (srcMatch)  baseUrl = srcMatch[1];
   if (hrefMatch) baseUrl = hrefMatch[1];
-  // Try to get root (remove last path segment)
   if (baseUrl) {
     try {
       const u = new URL(baseUrl, location.href);
-      // Go up to root of the site
       baseUrl = u.origin + u.pathname.replace(/\/[^\/]*$/, '/');
     } catch(e) { baseUrl = ''; }
   }
@@ -193,7 +190,6 @@ function buildHtml() {
     html = `<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body>${html}</body></html>`;
   }
 
-  // Inject <base> tag so relative URLs resolve correctly in srcdoc
   if (baseUrl) {
     const baseTag = `<base href="${baseUrl}">`;
     html = html.includes('</head>')
@@ -208,12 +204,9 @@ function buildHtml() {
       : html.replace('<body', styleTag + '<body');
   }
 
-  // Inline uploaded JS files — replace matching <script src> tags
-  // If no matching tag found, append before </body>
   if (loadedScripts.length) {
     loadedScripts.forEach(script => {
       const inlineTag = `<script>\n${script.content}\n<\/script>`;
-      // Match <script src="...filename..."> case-insensitively
       const srcRegex = new RegExp(
         `<script[^>]+src=["'][^"']*${script.name.replace('.', '\\.')}["'][^>]*>\\s*<\/script>`,
         'gi'
@@ -221,7 +214,6 @@ function buildHtml() {
       if (srcRegex.test(html)) {
         html = html.replace(srcRegex, inlineTag);
       } else {
-        // Script not referenced — append before </body>
         html = html.includes('</body>')
           ? html.replace('</body>', inlineTag + '\n</body>')
           : html + inlineTag;
@@ -232,7 +224,6 @@ function buildHtml() {
   return html;
 }
 
-// ── Classify element: container / text / image / leaf
 function classifyElement(el, computed, visibleChildren, directText, win) {
   if (el.tagName === 'HR') return 'leaf';
   if (IMAGE_TAGS.has(el.tagName)) return 'image';
@@ -240,9 +231,6 @@ function classifyElement(el, computed, visibleChildren, directText, win) {
   if (bgImage.includes('url(') && !bgImage.includes('gradient')) {
     if (visibleChildren.length === 0 && !directText) return 'image';
   }
-  // For flex/inline-flex containers where ALL children are inline,
-  // merge into a single text node (e.g. ct-row: dot + "Lc75")
-  // Skip for block/inline-block — those need container structure preserved
   const disp = computed.display;
   if ((disp === 'flex' || disp === 'inline-flex') && visibleChildren.length > 0 && directText) {
     const allInline = visibleChildren.every(child => {
@@ -253,8 +241,6 @@ function classifyElement(el, computed, visibleChildren, directText, win) {
     if (allInline) return 'text';
   }
   if (visibleChildren.length > 0) return 'container';
-  // If element has text BUT also has a visible background or border-radius
-  // treat as container so we can render both the box and the text
   if (directText) {
     const hasBg = computed.backgroundColor &&
                   computed.backgroundColor !== 'rgba(0, 0, 0, 0)' &&
@@ -267,7 +253,6 @@ function classifyElement(el, computed, visibleChildren, directText, win) {
   return 'leaf';
 }
 
-// ── Get direct text nodes only (not from children)
 function getDirectText(el) {
   let text = '';
   el.childNodes.forEach(n => {
@@ -279,7 +264,6 @@ function getDirectText(el) {
   return text;
 }
 
-// ── Main parse — renders HTML in hidden iframe, walks DOM
 function parseIframe(opts) {
   return new Promise((resolve, reject) => {
     const html = buildHtml();
@@ -300,12 +284,9 @@ function parseIframe(opts) {
           const body = doc.body;
           if (!body) return reject(new Error('No <body> in HTML'));
 
-          // Remove overflow only on elements that clip the full page layout
-          // (body, elements with 100vh height) — NOT on regular cards/components
           body.style.overflow = 'visible';
           body.style.height   = 'auto';
 
-          // Expand iframe to full content height so all elements are in viewport
           const fullH = Math.max(doc.documentElement.scrollHeight, body.scrollHeight);
           iframe.style.height = fullH + 'px';
           doc.querySelectorAll('*').forEach(el => {
@@ -324,13 +305,9 @@ function parseIframe(opts) {
             }
           });
 
-          // CRITICAL: single coordinate origin = body's top-left corner
-          // All bounds.x/y are relative to this point
           const rootRect = body.getBoundingClientRect();
-
           let nodeCount = 0;
           let skipCount = 0;
-          let marginCount = 0;
 
           function walkNode(el, depth) {
             if (depth > opts.maxDepth) return null;
@@ -341,18 +318,15 @@ function parseIframe(opts) {
             const rect     = el.getBoundingClientRect();
             const computed = win.getComputedStyle(el);
 
-            // Skip invisible
             if (!opts.incHidden) {
               if (computed.display === 'none')          { skipCount++; return null; }
               if (computed.visibility === 'hidden')     { skipCount++; return null; }
               if (parseFloat(computed.opacity) < 0.02) { skipCount++; return null; }
             }
 
-            // Skip too small or off-screen
             if (rect.width < opts.minSize || rect.height < opts.minSize) { skipCount++; return null; }
             if (rect.right < 0 || rect.bottom < 0)                       { skipCount++; return null; }
 
-            // Collect computed styles
             const styles = {};
             STYLE_PROPS.forEach(p => {
               const v = computed[p];
@@ -363,7 +337,6 @@ function parseIframe(opts) {
               }
               if (v !== 'normal' && v !== 'auto') styles[p] = v;
             });
-            // Get visible direct children
             const visibleChildren = Array.from(el.children).filter(child => {
               if (SKIP_TAGS.has(child.tagName)) return false;
               const cs = win.getComputedStyle(child);
@@ -372,8 +345,6 @@ function parseIframe(opts) {
               return cr.width >= opts.minSize && cr.height >= opts.minSize;
             });
 
-            // For non-flex/grid elements remove flex props —
-            // getComputedStyle returns flex defaults even for display:block
             const disp = computed.display;
             const isFlex = disp === 'flex' || disp === 'inline-flex';
             const isGrid = disp === 'grid' || disp === 'inline-grid';
@@ -381,12 +352,8 @@ function parseIframe(opts) {
               ['alignItems','justifyContent'].forEach(p => {
                 const v = computed[p];
                 if (!v) return;
-                // 'normal' in flex context = 'stretch'
                 styles[p] = (v === 'normal') ? 'stretch' : v;
               });
-              if (el.className && el.className.toString().includes('shades-wrap')) {
-                console.log('[debug] shades-wrap alignItems sent:', styles.alignItems);
-              }
             } else {
               delete styles.flexDirection;
               delete styles.flexWrap;
@@ -396,21 +363,15 @@ function parseIframe(opts) {
               delete styles.rowGap;
               delete styles.columnGap;
             }
-            // textAlign applies to all elements
             if (computed.textAlign) styles.textAlign = computed.textAlign;
 
-            // Get direct text
             let directText = opts.incText ? getDirectText(el) : '';
-
-            // Classify
             const kind = classifyElement(el, computed, visibleChildren, directText, win);
 
-            // For inline-only containers reclassified as text, use full textContent
             if (kind === 'text' && visibleChildren.length > 0) {
               directText = el.textContent.trim();
             }
 
-            // Layer name
             const name = el.id
               ? el.tagName.toLowerCase() + '#' + el.id
               : (el.className && typeof el.className === 'string' && el.className.trim())
@@ -419,7 +380,6 @@ function parseIframe(opts) {
 
             nodeCount++;
 
-            // bounds are relative to rootRect (body top-left)
             const bounds = {
               x:      Math.floor(rect.left - rootRect.left),
               y:      Math.floor(rect.top  - rootRect.top),
@@ -427,8 +387,7 @@ function parseIframe(opts) {
               height: Math.ceil(rect.height),
             };
 
-            // Recurse only for containers
-            const children = [];
+            const children =[];
             if (kind === 'container') {
               visibleChildren.forEach(child => {
                 const childNode = walkNode(child, depth + 1);
@@ -436,16 +395,10 @@ function parseIframe(opts) {
               });
             }
 
-            const hasMargin = (parseFloat(styles.marginTop) || 0) !== 0
-                            || (parseFloat(styles.marginBottom) || 0) !== 0
-                            || (parseFloat(styles.marginLeft) || 0) !== 0
-                            || (parseFloat(styles.marginRight) || 0) !== 0;
-            if (hasMargin) marginCount++;
-
             return { id: nodeCount, tag, name, kind, text: directText, bounds, styles, children };
           }
 
-          const roots = [];
+          const roots =[];
           Array.from(body.children).forEach(child => {
             const node = walkNode(child, 0);
             if (node) roots.push(node);
@@ -487,6 +440,7 @@ async function previewParse() {
 async function generate() {
   clearLog();
   document.getElementById('stats').classList.remove('show');
+  document.getElementById('marginFixBtn').style.display = 'none';
 
   const opts   = getOptions();
   const genBtn = document.getElementById('genBtn');
@@ -513,11 +467,10 @@ async function generate() {
   }
 }
 
-// ── Response from plugin.js (message-driven batch protocol)
+// ── Response from plugin.js
 window.addEventListener('message', event => {
   const btn = document.getElementById('genBtn');
 
-  // Pass 1 done — shapes created, wait for user to start flex
   if (event.data.type === 'PASS1_DONE') {
     log(`✓ Pass 1: elements created (${event.data.layoutCount} layouts, ${event.data.marginCount} margins)`);
     log('→ Click "Generate" again to apply flex layouts');
@@ -530,7 +483,6 @@ window.addEventListener('message', event => {
     };
   }
 
-  // Flex batch done — send next batch
   if (event.data.type === 'FLEX_BATCH_DONE') {
     btn.textContent = 'Flex: ' + event.data.next + '/' + event.data.total;
     setTimeout(() => {
@@ -538,12 +490,19 @@ window.addEventListener('message', event => {
     }, 50);
   }
 
-  // All done
   if (event.data.type === 'DONE') {
     btn.disabled    = false;
     btn.textContent = 'Generate in Penpot';
     log(`✓ All done!`);
     toast(`✓ All done!`);
+
+    // Если нужно применить Margin Fix - показываем кнопку
+    if (event.data.needsMarginFix) {
+      document.getElementById('marginFixBtn').style.display = 'block';
+      log(`⚠️ Обнаружены асимметричные отступы!`);
+      log(`   Из-за бага в Penpot их нужно раскрыть вручную.`);
+      log(`   Выдели элементы, нажми "Copy margin fix command" ниже и вставь команду в консоль F12.`);
+    }
   }
 
   if (event.data.type === 'ERROR') {
@@ -554,7 +513,6 @@ window.addEventListener('message', event => {
   }
 });
 
-// ── Copy margin fix command to clipboard
 function copyMarginCmd() {
   const cmd = `setTimeout(() => { document.querySelector('button:has(use[href="#icon-margin"])')?.click(); console.log('✓ Margin fix applied!'); }, 3000);`;
   navigator.clipboard.writeText(cmd).then(() => {
@@ -566,7 +524,6 @@ function copyMarginCmd() {
   });
 }
 
-// ── Viewport presets
 const PRESETS = {
   'desktop':   { w: 1440, h: 900  },
   'laptop':    { w: 1280, h: 800  },
@@ -583,8 +540,7 @@ function applyPreset(value) {
   document.getElementById('optHeight').value = p.h;
 }
 
-// ── JS file storage
-let loadedScripts = []; // [{ name, content }]
+let loadedScripts =[];
 
 function loadJsFiles(event) {
   const files = Array.from(event.target.files);
@@ -622,7 +578,6 @@ function renderJsList() {
     </div>`).join('');
 }
 
-// ── Init
 (function init() {
   const theme = new URLSearchParams(location.search).get('theme') || 'system';
   document.body.setAttribute('data-theme', theme);

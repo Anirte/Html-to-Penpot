@@ -1,11 +1,5 @@
 /**
  * plugin.js — Message-driven batched approach
- *
- * Pass 1 (CREATE_FRAMES): Build all shapes with absolute coordinates, NO flex layout.
- * Pass 2 (APPLY_FLEX_BATCH): Apply flex layouts in small batches, one message per batch.
- * Pass 3 (APPLY_MARGIN_BATCH): Apply margins in small batches, one message per batch.
- *
- * Each batch = separate message handler = separate Penpot commit.
  */
 
 penpot.ui.open('HTML to Penpot', `?theme=${penpot.theme}`, {
@@ -14,12 +8,11 @@ penpot.ui.open('HTML to Penpot', `?theme=${penpot.theme}`, {
 });
 
 let layoutQueue = [];
-let marginQueue = [];
+let marginQueue =[];
 const BATCH_SIZE = 20;
 
 penpot.ui.onMessage(async (message) => {
 
-  // ═══════════════════════════════════════ PASS 1: Create shapes
   if (message.type === 'CREATE_FRAMES') {
     const { nodes } = message;
     if (!nodes || !nodes.length) {
@@ -27,8 +20,8 @@ penpot.ui.onMessage(async (message) => {
       return;
     }
 
-    layoutQueue = [];
-    marginQueue = [];
+    layoutQueue =[];
+    marginQueue =[];
 
     const center = penpot.viewport.center;
 
@@ -49,7 +42,7 @@ penpot.ui.onMessage(async (message) => {
     rootBoard.resize(totalW + PAD * 2, totalH + PAD * 2);
     rootBoard.x = center.x - (totalW + PAD * 2) / 2;
     rootBoard.y = center.y - (totalH + PAD * 2) / 2;
-    rootBoard.fills = [];
+    rootBoard.fills =[];
 
     for (const node of nodes) {
       buildNodePass1(node, rootBoard, rootBoard.x + PAD, rootBoard.y + PAD, minX, minY);
@@ -62,9 +55,7 @@ penpot.ui.onMessage(async (message) => {
     });
   }
 
-  // ═══════════════════════════════════════ PASS 2: Apply flex + reset children coords + margins
   if (message.type === 'APPLY_FLEX_BATCH') {
-    // Sort by depth descending on first batch — deepest boards first
     if (message.start === 0) {
       layoutQueue.sort((a, b) => b.depth - a.depth);
     }
@@ -76,7 +67,6 @@ penpot.ui.onMessage(async (message) => {
       try {
         const item = layoutQueue[i];
 
-        // Reset children coords to parent origin — forces flex to recalculate
         if (item.board.children) {
           item.board.children.forEach(c => { c.x = item.board.x; c.y = item.board.y; });
         }
@@ -93,17 +83,30 @@ penpot.ui.onMessage(async (message) => {
         flex.rowGap         = item.config.rowGap;
         flex.columnGap      = item.config.columnGap;
 
-        // Apply margins to children of this board immediately
         if (item.board.children) {
           item.board.children.forEach(child => {
             const mItem = marginQueue.find(m => m.shape === child);
             if (mItem && child.layoutChild) {
-              child.layoutChild.verticalMargin   = 0;
-              child.layoutChild.horizontalMargin = 0;
+
+              // Записываем нужные отступы напрямую
               child.layoutChild.topMargin    = mItem.mt;
               child.layoutChild.rightMargin  = mItem.mr;
               child.layoutChild.bottomMargin = mItem.mb;
               child.layoutChild.leftMargin   = mItem.ml;
+
+              // Если отступы симметричны, задаём объединённые переменные
+              // ВАЖНО: больше не задаем null, так как это вызывало сбой API
+              if (mItem.mt === mItem.mb) {
+                child.layoutChild.verticalMargin = mItem.mt;
+              }
+              if (mItem.ml === mItem.mr) {
+                child.layoutChild.horizontalMargin = mItem.ml;
+              }
+
+              // Пытаемся безопасно раскрыть отступы программно
+              try { child.layoutChild.marginExpanded = true; } catch(e){}
+              try { child.layoutChild.isMarginExpanded = true; } catch(e){}
+
               if (mItem.flexGrow > 0) {
                 if (mItem.parentDir.includes('column')) {
                   child.layoutChild.verticalSizing = 'fill';
@@ -126,21 +129,19 @@ penpot.ui.onMessage(async (message) => {
         total: layoutQueue.length
       });
     } else {
+      const needsMargin = marginQueue.length > 0;
+      const count = marginQueue.length;
       layoutQueue = [];
-      marginQueue = [];
+      marginQueue =[];
       penpot.ui.sendMessage({
         type: 'DONE',
-        needsMarginFix: false,
-        marginCount: 0
+        needsMarginFix: needsMargin,
+        marginCount: count
       });
     }
   }
 
 });
-
-// ═══════════════════════════════════════════════════════════════
-// PASS 1: Build all shapes — NO flex layout
-// ═══════════════════════════════════════════════════════════════
 
 function shouldUseGrid(node) {
   return node.styles.display === 'grid' || node.styles.display === 'inline-grid';
@@ -170,7 +171,7 @@ function buildNodePass1(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, 
         const lh = parseFloat(node.styles.lineHeight);
         if (!isNaN(lh) && lh > 0) txt.lineHeight = lh;
         const tc = parseCssColor(node.styles.color);
-        if (tc) txt.fills = [tc];
+        if (tc) txt.fills =[tc];
         parentBoard.appendChild(txt);
       }
       return txt;
@@ -183,7 +184,7 @@ function buildNodePass1(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, 
       rect.y    = absY;
       rect.resize(w, Math.max(1, h));
       const bgFill = parseCssColor(node.styles.backgroundColor);
-      rect.fills = bgFill ? [bgFill] : [];
+      rect.fills = bgFill ? [bgFill] :[];
       applyBorderRadius(rect, node.styles);
       applyStroke(rect, node.styles);
       parentBoard.appendChild(rect);
@@ -197,7 +198,7 @@ function buildNodePass1(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, 
     board.resize(w, h);
 
     const bgFill = parseCssColor(node.styles.backgroundColor);
-    board.fills = bgFill ? [bgFill] : [];
+    board.fills = bgFill ?[bgFill] :[];
     applyBorderRadius(board, node.styles);
     applyStroke(board, node.styles);
     applyShadow(board, node.styles);
@@ -207,7 +208,7 @@ function buildNodePass1(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, 
 
     parentBoard.appendChild(board);
 
-    const childNodes = node.children || [];
+    const childNodes = node.children ||[];
     const useGrid = shouldUseGrid(node);
 
     if (!useGrid) {
@@ -217,8 +218,11 @@ function buildNodePass1(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, 
       }
     }
 
-    const childShapes = [];
-    childNodes.forEach(child => {
+    const childShapes =[];
+
+    // ИСПРАВЛЕНИЕ: Разворачиваем порядок дочерних элементов,
+    // чтобы Penpot строил их слева направо!
+    [...childNodes].reverse().forEach(child => {
       const shape = buildNodePass1(child, board, absX, absY, node.bounds.x, node.bounds.y, depth + 1);
       childShapes.push({ node: child, shape });
     });
@@ -332,8 +336,6 @@ function addTextChild(node, board, absX, absY) {
   board.appendChild(txt);
 }
 
-// ── Style helpers ──────────────────────────────────────────────
-
 function applyBorderRadius(shape, styles) {
   const br = parseFloat(styles.borderRadius);
   if (!isNaN(br) && br > 0) shape.borderRadius = Math.round(br);
@@ -345,12 +347,12 @@ function applyShadow(shape, styles) {
   const colorFirst = bs.match(/^(rgba?\([^)]+\)|#[0-9a-f]+)\s+(-?[\d.]+)px\s+(-?[\d.]+)px\s+(-?[\d.]+)px(?:\s+(-?[\d.]+)px)?/i);
   const colorLast  = bs.match(/(-?[\d.]+)px\s+(-?[\d.]+)px\s+(-?[\d.]+)px(?:\s+(-?[\d.]+)px)?\s+(rgba?\([^)]+\)|#[0-9a-f]+)/i);
   let offsetX, offsetY, blur, spread, colorStr;
-  if (colorFirst) { [, colorStr, offsetX, offsetY, blur, spread] = colorFirst; }
-  else if (colorLast) { [, offsetX, offsetY, blur, spread, colorStr] = colorLast; }
+  if (colorFirst) {[, colorStr, offsetX, offsetY, blur, spread] = colorFirst; }
+  else if (colorLast) {[, offsetX, offsetY, blur, spread, colorStr] = colorLast; }
   else return;
   const color = parseCssColor(colorStr);
   if (!color) return;
-  shape.shadows = [{
+  shape.shadows =[{
     style:   'drop-shadow',
     offsetX: parseFloat(offsetX),
     offsetY: parseFloat(offsetY),
@@ -365,7 +367,7 @@ function applyStroke(shape, styles) {
   const bw = parseFloat(styles.borderTopWidth);
   const bc = parseCssColor(styles.borderTopColor);
   if (bc && bw > 0) {
-    shape.strokes = [{
+    shape.strokes =[{
       strokeColor:     bc.fillColor,
       strokeOpacity:   bc.fillOpacity,
       strokeStyle:     'solid',
@@ -429,7 +431,7 @@ function resolveFont(cssFamily) {
 }
 
 function safeWeight(w) {
-  const valid = ['100','200','300','400','500','600','700','800','900'];
+  const valid =['100','200','300','400','500','600','700','800','900'];
   const n = String(Math.round((parseFloat(w) || 400) / 100) * 100);
   return valid.includes(n) ? n : '400';
 }
