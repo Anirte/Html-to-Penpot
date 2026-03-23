@@ -517,13 +517,17 @@ async function generate() {
 window.addEventListener('message', event => {
   const btn = document.getElementById('genBtn');
 
-  // Pass 1 done — shapes created, start flex batches
+  // Pass 1 done — shapes created, wait for user to start flex
   if (event.data.type === 'PASS1_DONE') {
     log(`✓ Pass 1: elements created (${event.data.layoutCount} layouts, ${event.data.marginCount} margins)`);
-    btn.textContent = 'Flex: 0/' + event.data.layoutCount;
-    setTimeout(() => {
+    log('→ Click "Generate" again to apply flex layouts');
+    btn.disabled = false;
+    btn.textContent = 'Apply Flex (' + event.data.layoutCount + ')';
+    btn.onclick = function() {
+      btn.disabled = true;
+      btn.textContent = 'Flex: 0/' + event.data.layoutCount;
       parent.postMessage({ type: 'APPLY_FLEX_BATCH', start: 0 }, '*');
-    }, 300);
+    };
   }
 
   // Flex batch done — send next batch
