@@ -401,7 +401,7 @@ function parseIframe(opts) {
             if (computed.textAlign) styles.textAlign = computed.textAlign;
 
             // Get direct text
-            const directText = opts.incText ? getDirectText(el) : '';
+            let directText = opts.incText ? getDirectText(el) : '';
 
             // Classify
             const kind = classifyElement(el, computed, visibleChildren, directText, win);
