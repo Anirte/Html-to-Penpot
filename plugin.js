@@ -55,6 +55,8 @@ penpot.ui.onMessage(async (message) => {
       await buildNode(node, rootBoard, rootBoard.x + PAD, rootBoard.y + PAD, minX, minY, shapesWithMargin, 0);
       totalCreated++;
       console.log('[ROOT] <<< done:', node.name);
+      // Real delay to force Penpot to commit intermediate state
+      await new Promise(r => setTimeout(r, 500));
     }
 
     console.log('[DONE] Total created:', totalCreated, 'margins:', shapesWithMargin.length);
