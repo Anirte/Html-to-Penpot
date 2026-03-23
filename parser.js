@@ -513,37 +513,55 @@ async function generate() {
   }
 }
 
-// ── Response from plugin.js (2-pass protocol with batched timer)
+// ── Response from plugin.js (message-driven batch protocol)
 window.addEventListener('message', event => {
   const btn = document.getElementById('genBtn');
 
-  // Pass 1 done — shapes created, now apply flex + margins
+  // Pass 1 done — shapes created, start flex batches
   if (event.data.type === 'PASS1_DONE') {
-    log(`✓ Pass 1: ${event.data.count} elements created (${event.data.layoutCount} layouts, ${event.data.marginCount} margins queued)`);
-    btn.textContent = 'Applying layout…';
+    log(`✓ Pass 1: elements created (${event.data.layoutCount} layouts, ${event.data.marginCount} margins)`);
+    btn.textContent = 'Flex: 0/' + event.data.layoutCount;
     setTimeout(() => {
-      parent.postMessage({ type: 'APPLY_LAYOUT' }, '*');
+      parent.postMessage({ type: 'APPLY_FLEX_BATCH', start: 0 }, '*');
     }, 300);
   }
 
-  // Progress updates during batched apply
-  if (event.data.type === 'PROGRESS') {
-    btn.textContent = `${event.data.phase}: ${event.data.current}/${event.data.total}`;
+  // Flex batch done — send next batch
+  if (event.data.type === 'FLEX_BATCH_DONE') {
+    btn.textContent = 'Flex: ' + event.data.next + '/' + event.data.total;
+    setTimeout(() => {
+      parent.postMessage({ type: 'APPLY_FLEX_BATCH', start: event.data.next }, '*');
+    }, 50);
+  }
+
+  // All flex done — start margin batches
+  if (event.data.type === 'FLEX_ALL_DONE') {
+    log(`✓ Pass 2: ${event.data.applied} flex layouts applied`);
+    btn.textContent = 'Margins: 0/' + event.data.marginCount;
+    setTimeout(() => {
+      parent.postMessage({ type: 'APPLY_MARGIN_BATCH', start: 0 }, '*');
+    }, 300);
+  }
+
+  // Margin batch done — send next batch
+  if (event.data.type === 'MARGIN_BATCH_DONE') {
+    btn.textContent = 'Margins: ' + event.data.next + '/' + event.data.total;
+    setTimeout(() => {
+      parent.postMessage({ type: 'APPLY_MARGIN_BATCH', start: event.data.next }, '*');
+    }, 50);
   }
 
   // All done
   if (event.data.type === 'DONE') {
     btn.disabled    = false;
     btn.textContent = 'Generate in Penpot';
-    log(`✓ Pass 2: flex + margins applied`);
+    log(`✓ All done!`);
     if (event.data.needsMarginFix) {
       log(`⚠ ${event.data.marginCount} elements with margins selected.`);
       log('→ Click "Copy margin fix" then open F12 → Ctrl+V → Enter');
       document.getElementById('marginFixBtn').style.display = 'block';
-      toast(`✓ All done!`);
-    } else {
-      toast(`✓ All done!`);
     }
+    toast(`✓ All done!`);
   }
 
   if (event.data.type === 'ERROR') {
