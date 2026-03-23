@@ -176,6 +176,10 @@ function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlB
       }
 
     } else {
+      // Append to parent FIRST, then add flex layout
+      // (Penpot may lose layout if appendChild happens after addFlexLayout)
+      parentBoard.appendChild(board);
+
       // Flex Layout for column/block containers
       try {
         const flex = board.addFlexLayout();
@@ -221,8 +225,6 @@ function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlB
         flex.columnGap = parseFloat(node.styles.columnGap) || parseFloat(node.styles.gap) || 0;
 
       } catch (e) {}
-
-      parentBoard.appendChild(board);
 
       // Build children and immediately apply layout properties
       const childShapes = [];
@@ -356,8 +358,6 @@ function buildNodeReturnShape(node, parentBoard, canvasBaseX, canvasBaseY, htmlB
       flex.rowGap    = parseFloat(node.styles.rowGap)    || parseFloat(node.styles.gap) || 0;
       flex.columnGap = parseFloat(node.styles.columnGap) || parseFloat(node.styles.gap) || 0;
     } catch (e) {}
-
-    parentBoard.appendChild(board);
 
     if (node.text && node.text.trim()) addTextChild(node, board, absX, absY);
 
