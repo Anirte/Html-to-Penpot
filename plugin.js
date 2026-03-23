@@ -224,8 +224,6 @@ function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlB
 
       parentBoard.appendChild(board);
 
-      if (node.text && node.text.trim()) addTextChild(node, board, absX, absY);
-
       // Build children and immediately apply layout properties
       const childShapes = [];
       childNodes.forEach(child => {
@@ -262,6 +260,9 @@ function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlB
       } catch (e) {
         console.warn('[margin] error:', e.message);
       }
+
+      // Add inline text AFTER children so appendChild order is correct
+      if (node.text && node.text.trim()) addTextChild(node, board, absX, absY);
     }
 
     return board;
