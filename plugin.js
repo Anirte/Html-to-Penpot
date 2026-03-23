@@ -1,13 +1,11 @@
 /**
- * plugin.js
+ * plugin.js — Two-pass approach
  *
- * CRITICAL (Penpot API):
- * shape.x / shape.y are ABSOLUTE canvas coordinates always.
- * Even when appended to a board, coordinates stay absolute.
+ * Pass 1 (CREATE_FRAMES): Build all shapes with absolute coordinates, NO flex layout.
+ * Pass 2 (APPLY_LAYOUT):  Apply flex layout to all boards.
+ * Pass 3 (APPLY_MARGINS): Apply margins after flex is committed.
  *
- * Formula for each child:
- *   absX = canvasBaseX + (node.bounds.x - htmlBaseX)
- *   absY = canvasBaseY + (node.bounds.y - htmlBaseY)
+ * This avoids Penpot's batch commit breaking nested flex layouts.
  */
 
 penpot.ui.open('HTML to Penpot', `?theme=${penpot.theme}`, {
@@ -15,14 +13,22 @@ penpot.ui.open('HTML to Penpot', `?theme=${penpot.theme}`, {
   height: 800,
 });
 
+// Stores board references + their flex configs between passes
+let layoutQueue = [];
+let marginQueue = [];
+
 penpot.ui.onMessage(async (message) => {
 
+  // ═══════════════════════════════════════ PASS 1: Create shapes
   if (message.type === 'CREATE_FRAMES') {
     const { nodes } = message;
     if (!nodes || !nodes.length) {
       penpot.ui.sendMessage({ type: 'ERROR', message: 'No elements received' });
       return;
     }
+
+    layoutQueue = [];
+    marginQueue = [];
 
     const center = penpot.viewport.center;
 
@@ -46,30 +52,85 @@ penpot.ui.onMessage(async (message) => {
     rootBoard.fills = [];
 
     let totalCreated = 0;
-    const shapesWithMargin = [];
-
-    console.log('[START] Building', nodes.length, 'root nodes');
-
     for (const node of nodes) {
-      console.log('[ROOT] >>>', node.name);
-      await buildNode(node, rootBoard, rootBoard.x + PAD, rootBoard.y + PAD, minX, minY, shapesWithMargin, 0);
+      buildNodePass1(node, rootBoard, rootBoard.x + PAD, rootBoard.y + PAD, minX, minY);
       totalCreated++;
-      console.log('[ROOT] <<< done:', node.name);
-      // Real delay to force Penpot to commit intermediate state
-      await new Promise(r => setTimeout(r, 500));
     }
 
-    console.log('[DONE] Total created:', totalCreated, 'margins:', shapesWithMargin.length);
+    penpot.ui.sendMessage({
+      type: 'PASS1_DONE',
+      count: totalCreated,
+      layoutCount: layoutQueue.length,
+      marginCount: marginQueue.length
+    });
+  }
+
+  // ═══════════════════════════════════════ PASS 2: Apply flex layouts
+  if (message.type === 'APPLY_LAYOUT') {
+    let flexApplied = 0;
+
+    for (const item of layoutQueue) {
+      try {
+        const flex = item.board.addFlexLayout();
+        flex.dir            = item.config.dir;
+        flex.wrap           = item.config.wrap;
+        flex.alignItems     = item.config.alignItems;
+        flex.justifyContent = item.config.justifyContent;
+        flex.topPadding     = item.config.topPadding;
+        flex.rightPadding   = item.config.rightPadding;
+        flex.bottomPadding  = item.config.bottomPadding;
+        flex.leftPadding    = item.config.leftPadding;
+        flex.rowGap         = item.config.rowGap;
+        flex.columnGap      = item.config.columnGap;
+        flexApplied++;
+      } catch (e) {}
+    }
+
+    penpot.ui.sendMessage({
+      type: 'PASS2_DONE',
+      flexApplied,
+      marginCount: marginQueue.length
+    });
+  }
+
+  // ═══════════════════════════════════════ PASS 3: Apply margins
+  if (message.type === 'APPLY_MARGINS') {
+    let marginApplied = 0;
+    const shapesWithMargin = [];
+
+    for (const item of marginQueue) {
+      try {
+        if (!item.shape || !item.shape.layoutChild) continue;
+        item.shape.layoutChild.verticalMargin   = 0;
+        item.shape.layoutChild.horizontalMargin = 0;
+        item.shape.layoutChild.topMargin    = item.mt;
+        item.shape.layoutChild.rightMargin  = item.mr;
+        item.shape.layoutChild.bottomMargin = item.mb;
+        item.shape.layoutChild.leftMargin   = item.ml;
+        if (item.flexGrow > 0) {
+          if (item.parentDir.includes('column')) {
+            item.shape.layoutChild.verticalSizing = 'fill';
+          } else {
+            item.shape.layoutChild.horizontalSizing = 'fill';
+          }
+        }
+        if (item.mt !== 0 || item.mb !== 0 || item.ml !== 0 || item.mr !== 0) {
+          shapesWithMargin.push(item.shape);
+          marginApplied++;
+        }
+      } catch (e) {}
+    }
 
     if (shapesWithMargin.length > 0) {
       try { penpot.selection = shapesWithMargin; } catch (e) {}
     }
 
-    console.log('[SEND] Sending DONE message');
+    layoutQueue = [];
+    marginQueue = [];
 
     penpot.ui.sendMessage({
       type: 'DONE',
-      count: totalCreated,
+      count: marginApplied,
       needsMarginFix: shapesWithMargin.length > 0,
       marginCount: shapesWithMargin.length
     });
@@ -77,13 +138,15 @@ penpot.ui.onMessage(async (message) => {
 
 });
 
+// ═══════════════════════════════════════════════════════════════
+// PASS 1: Build all shapes — NO flex layout
+// ═══════════════════════════════════════════════════════════════
+
 function shouldUseGrid(node) {
   return node.styles.display === 'grid' || node.styles.display === 'inline-grid';
 }
 
-async function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlBaseY, shapesWithMargin, depth) {
-  if (!shapesWithMargin) shapesWithMargin = [];
-  if (depth === undefined) depth = 0;
+function buildNodePass1(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlBaseY) {
   try {
     const relX = node.bounds.x - htmlBaseX;
     const relY = node.bounds.y - htmlBaseY;
@@ -109,7 +172,6 @@ async function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX,
         const tc = parseCssColor(node.styles.color);
         if (tc) txt.fills = [tc];
         parentBoard.appendChild(txt);
-        try { if (txt.layoutChild) txt.layoutChild.horizontalSizing = 'fill'; } catch (e) {}
       }
       return txt;
     }
@@ -126,10 +188,7 @@ async function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX,
       applyBorderRadius(rect, node.styles);
       applyStroke(rect, node.styles);
       parentBoard.appendChild(rect);
-      if (node.tag === 'HR') {
-        try { if (rect.layoutChild) rect.layoutChild.horizontalSizing = 'fill'; } catch(e) {}
-      }
-      return;
+      return rect;
     }
 
     // Container
@@ -148,9 +207,50 @@ async function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX,
     board.horizontalSizing = 'fix';
     board.verticalSizing   = 'fix';
 
-    const childNodes = node.children || [];
-    const useGrid    = shouldUseGrid(node);
+    parentBoard.appendChild(board);
 
+    const childNodes = node.children || [];
+    const useGrid = shouldUseGrid(node);
+
+    // Queue flex config for Pass 2 (but don't apply now)
+    if (!useGrid) {
+      const flexConfig = computeFlexConfig(node);
+      if (flexConfig) {
+        layoutQueue.push({ board, config: flexConfig });
+      }
+    }
+
+    // Build children
+    const childShapes = [];
+    childNodes.forEach(child => {
+      const shape = buildNodePass1(child, board, absX, absY, node.bounds.x, node.bounds.y);
+      childShapes.push({ node: child, shape });
+    });
+
+    // Inline text after children
+    if (node.text && node.text.trim()) {
+      addTextChild(node, board, absX, absY);
+    }
+
+    // Queue margins for Pass 3
+    childShapes.forEach(({ node: cn, shape }) => {
+      if (!shape) return;
+      const mt = parseFloat(cn.styles.marginTop)    || 0;
+      const mb = parseFloat(cn.styles.marginBottom) || 0;
+      const ml = parseFloat(cn.styles.marginLeft)   || 0;
+      const mr = parseFloat(cn.styles.marginRight)  || 0;
+      const fg = parseFloat(cn.styles.flexGrow)     || 0;
+      if (mt !== 0 || mb !== 0 || ml !== 0 || mr !== 0 || fg > 0) {
+        marginQueue.push({
+          shape,
+          mt, mb, ml, mr,
+          flexGrow: fg,
+          parentDir: node.styles.flexDirection || ''
+        });
+      }
+    });
+
+    // Grid layout applied inline (needs immediate cell placement)
     if (useGrid) {
       try {
         const grid = board.addGridLayout();
@@ -161,245 +261,68 @@ async function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX,
         grid.leftPadding   = parseFloat(node.styles.paddingLeft)   || 0;
         grid.columnGap     = parseFloat(node.styles.columnGap) || parseFloat(node.styles.gap) || 0;
         grid.rowGap        = parseFloat(node.styles.rowGap)    || parseFloat(node.styles.gap) || 0;
-
         grid.addRow('auto');
         childNodes.forEach(() => grid.addColumn('flex', 1));
-
-        parentBoard.appendChild(board);
-
-        if (node.text && node.text.trim()) addTextChild(node, board, absX, absY);
-
-        const sortedChildren = [...childNodes].sort((a, b) => a.bounds.x - b.bounds.x);
-        sortedChildren.forEach((child, idx) => {
-          const shape = buildNodeReturnShape(child, board, absX, absY, node.bounds.x, node.bounds.y);
-          if (shape) {
-            try { grid.appendChild(shape, 0, idx); } catch (e) {}
-          }
+        const sorted = [...board.children].sort((a, b) => a.x - b.x);
+        sorted.forEach((child, idx) => {
+          try { grid.appendChild(child, 0, idx); } catch (e) {}
         });
-
-      } catch (e) {
-        console.warn('[grid] error:', e.message);
-      }
-
-    } else {
-      // Flex config
-      let flexConfig = null;
-      try {
-        const isCssFlex = node.styles.display === 'flex' || node.styles.display === 'inline-flex';
-        const isButton  = node.tag === 'BUTTON' || node.tag === 'INPUT';
-
-        const dir = isCssFlex
-          ? ((node.styles.flexDirection || '').includes('column') ? 'column' : 'row')
-          : (isButton ? 'row' : 'column');
-
-        const isFlexRow = dir === 'row';
-        const cssWrap = node.styles.flexWrap || '';
-
-        const ai = node.styles.alignItems || '';
-        const aiVal = ai === 'center'                     ? 'center'
-                    : (ai === 'flex-end' || ai === 'end') ? 'end'
-                    : ai === 'stretch'                    ? 'stretch'
-                    : isButton                            ? 'center'
-                    : 'start';
-
-        const jc = node.styles.justifyContent || '';
-        const jcVal = jc === 'center'        ? 'center'
-                    : jc === 'flex-end'      ? 'end'
-                    : jc === 'space-between' ? 'space-between'
-                    : jc === 'space-around'  ? 'space-around'
-                    : jc === 'space-evenly'  ? 'space-evenly'
-                    : isButton               ? 'center'
-                    : 'start';
-
-        flexConfig = {
-          dir,
-          wrap: cssWrap === 'nowrap' ? 'nowrap' : cssWrap === 'wrap' ? 'wrap' : (isFlexRow ? 'nowrap' : 'wrap'),
-          alignItems: aiVal,
-          justifyContent: jcVal,
-          topPadding:    parseFloat(node.styles.paddingTop)    || 0,
-          rightPadding:  parseFloat(node.styles.paddingRight)  || 0,
-          bottomPadding: parseFloat(node.styles.paddingBottom) || 0,
-          leftPadding:   parseFloat(node.styles.paddingLeft)   || 0,
-          rowGap:    parseFloat(node.styles.rowGap)    || parseFloat(node.styles.gap) || 0,
-          columnGap: parseFloat(node.styles.columnGap) || parseFloat(node.styles.gap) || 0,
-        };
       } catch (e) {}
-
-      // Step 1: appendChild to parent
-      parentBoard.appendChild(board);
-
-      // Step 2: Apply flex
-      if (flexConfig) {
-        try {
-          const flex = board.addFlexLayout();
-          flex.dir            = flexConfig.dir;
-          flex.wrap           = flexConfig.wrap;
-          flex.alignItems     = flexConfig.alignItems;
-          flex.justifyContent = flexConfig.justifyContent;
-          flex.topPadding     = flexConfig.topPadding;
-          flex.rightPadding   = flexConfig.rightPadding;
-          flex.bottomPadding  = flexConfig.bottomPadding;
-          flex.leftPadding    = flexConfig.leftPadding;
-          flex.rowGap         = flexConfig.rowGap;
-          flex.columnGap      = flexConfig.columnGap;
-          console.log('[FLEX] d=' + depth, node.name, 'dir=' + flexConfig.dir);
-        } catch (e) {
-          console.warn('[FLEX-FAIL]', node.name, e.message);
-        }
-      }
-
-      // Step 3: Build children
-      const childShapes = [];
-      for (const child of childNodes) {
-        const shape = await buildNode(child, board, absX, absY, node.bounds.x, node.bounds.y, shapesWithMargin, depth + 1);
-        childShapes.push({ node: child, shape });
-      }
-
-      // Step 4: Inline text after children
-      if (node.text && node.text.trim()) addTextChild(node, board, absX, absY);
-
-      // Step 5: Margins
-      try {
-        childShapes.forEach(({ node: cn, shape }) => {
-          if (!shape || !shape.layoutChild) return;
-          const mt = parseFloat(cn.styles.marginTop)    || 0;
-          const mb = parseFloat(cn.styles.marginBottom) || 0;
-          const ml = parseFloat(cn.styles.marginLeft)   || 0;
-          const mr = parseFloat(cn.styles.marginRight)  || 0;
-          shape.layoutChild.verticalMargin   = 0;
-          shape.layoutChild.horizontalMargin = 0;
-          shape.layoutChild.topMargin    = mt;
-          shape.layoutChild.rightMargin  = mr;
-          shape.layoutChild.bottomMargin = mb;
-          shape.layoutChild.leftMargin   = ml;
-          const fg = parseFloat(cn.styles.flexGrow) || 0;
-          if (fg > 0) {
-            const parentDir = node.styles.flexDirection || '';
-            if (parentDir.includes('column')) {
-              shape.layoutChild.verticalSizing = 'fill';
-            } else {
-              shape.layoutChild.horizontalSizing = 'fill';
-            }
-          }
-          if (mt !== 0 || mb !== 0 || ml !== 0 || mr !== 0) {
-            shapesWithMargin.push(shape);
-          }
-        });
-      } catch (e) {
-        console.warn('[margin] error:', e.message);
-      }
-
-      console.log('[BUILT] d=' + depth, node.name, 'children=' + childShapes.length);
     }
 
     return board;
   } catch (err) {
-    console.warn('[html-to-penpot] Failed:', node.name, err);
+    console.warn('[pass1] Failed:', node.name, err);
     return null;
   }
 }
 
-// Build a node and return the shape — used by Grid Layout
-function buildNodeReturnShape(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlBaseY) {
+function computeFlexConfig(node) {
   try {
-    const relX = node.bounds.x - htmlBaseX;
-    const relY = node.bounds.y - htmlBaseY;
-    const absX = canvasBaseX + relX;
-    const absY = canvasBaseY + relY;
-    const w    = Math.max(1, node.bounds.width);
-    const h    = Math.max(1, node.bounds.height);
+    const isCssFlex = node.styles.display === 'flex' || node.styles.display === 'inline-flex';
+    const isButton  = node.tag === 'BUTTON' || node.tag === 'INPUT';
 
-    if (node.kind === 'text' && node.text && node.text.trim()) {
-      const txt = penpot.createText(node.text.trim());
-      if (!txt) return null;
-      txt.name       = node.name;
-      txt.x          = absX;
-      txt.y          = absY;
-      txt.growType   = 'auto-height';
-      txt.resize(w, h);
-      txt.fontFamily = resolveFont(node.styles.fontFamily);
-      txt.fontSize   = String(Math.round(parseFloat(node.styles.fontSize) || 14));
-      txt.fontWeight = safeWeight(node.styles.fontWeight);
-      const tc = parseCssColor(node.styles.color);
-      if (tc) txt.fills = [tc];
-      parentBoard.appendChild(txt);
-      return txt;
-    }
+    const dir = isCssFlex
+      ? ((node.styles.flexDirection || '').includes('column') ? 'column' : 'row')
+      : (isButton ? 'row' : 'column');
 
-    if (node.kind === 'leaf') {
-      const rect = penpot.createRectangle();
-      rect.name = node.name;
-      rect.x    = absX;
-      rect.y    = absY;
-      rect.resize(w, h);
-      const bgFill = parseCssColor(node.styles.backgroundColor);
-      rect.fills = bgFill ? [bgFill] : [];
-      applyBorderRadius(rect, node.styles);
-      applyStroke(rect, node.styles);
-      parentBoard.appendChild(rect);
-      return rect;
-    }
+    const isFlexRow = dir === 'row';
+    const cssWrap = node.styles.flexWrap || '';
 
-    // Container child inside grid
-    const board = penpot.createBoard();
-    board.name = node.name;
-    board.x    = absX;
-    board.y    = absY;
-    board.resize(w, h);
-    const bgFill = parseCssColor(node.styles.backgroundColor);
-    board.fills = bgFill ? [bgFill] : [];
-    applyBorderRadius(board, node.styles);
-    applyStroke(board, node.styles);
-    applyShadow(board, node.styles);
-    board.clipContent      = node.styles.overflow === 'hidden';
-    board.horizontalSizing = 'fix';
-    board.verticalSizing   = 'fix';
+    const ai = node.styles.alignItems || '';
+    const aiVal = ai === 'center'                     ? 'center'
+                : (ai === 'flex-end' || ai === 'end') ? 'end'
+                : ai === 'stretch'                    ? 'stretch'
+                : isButton                            ? 'center'
+                : 'start';
 
-    try {
-      const flex = board.addFlexLayout();
-      const isCssFlex = node.styles.display === 'flex' || node.styles.display === 'inline-flex';
-      const isButton  = node.tag === 'BUTTON' || node.tag === 'INPUT';
-      flex.dir = isCssFlex
-        ? ((node.styles.flexDirection || '').includes('column') ? 'column' : 'row')
-        : (isButton ? 'row' : 'column');
-      flex.wrap = (node.styles.flexWrap === 'nowrap') ? 'nowrap' : 'wrap';
-      const ai = node.styles.alignItems || '';
-      flex.alignItems = ai === 'center' ? 'center'
-        : (ai === 'flex-end' || ai === 'end') ? 'end'
-        : ai === 'stretch' ? 'stretch'
-        : isButton ? 'center' : 'start';
-      const jc = node.styles.justifyContent || '';
-      flex.justifyContent = jc === 'center' ? 'center'
-        : jc === 'flex-end' ? 'end'
-        : jc === 'space-between' ? 'space-between'
-        : jc === 'space-around' ? 'space-around'
-        : jc === 'space-evenly' ? 'space-evenly'
-        : isButton ? 'center' : 'start';
-      flex.topPadding    = parseFloat(node.styles.paddingTop)    || 0;
-      flex.rightPadding  = parseFloat(node.styles.paddingRight)  || 0;
-      flex.bottomPadding = parseFloat(node.styles.paddingBottom) || 0;
-      flex.leftPadding   = parseFloat(node.styles.paddingLeft)   || 0;
-      flex.rowGap    = parseFloat(node.styles.rowGap)    || parseFloat(node.styles.gap) || 0;
-      flex.columnGap = parseFloat(node.styles.columnGap) || parseFloat(node.styles.gap) || 0;
-    } catch (e) {}
+    const jc = node.styles.justifyContent || '';
+    const jcVal = jc === 'center'        ? 'center'
+                : jc === 'flex-end'      ? 'end'
+                : jc === 'space-between' ? 'space-between'
+                : jc === 'space-around'  ? 'space-around'
+                : jc === 'space-evenly'  ? 'space-evenly'
+                : isButton               ? 'center'
+                : 'start';
 
-    parentBoard.appendChild(board);
-
-    if (node.text && node.text.trim()) addTextChild(node, board, absX, absY);
-
-    (node.children || []).forEach(child => {
-      buildNode(child, board, absX, absY, node.bounds.x, node.bounds.y);
-    });
-
-    return board;
-
-  } catch (err) {
-    console.warn('[buildNodeReturnShape] Failed:', node.name, err);
+    return {
+      dir,
+      wrap: cssWrap === 'nowrap' ? 'nowrap' : cssWrap === 'wrap' ? 'wrap' : (isFlexRow ? 'nowrap' : 'wrap'),
+      alignItems: aiVal,
+      justifyContent: jcVal,
+      topPadding:    parseFloat(node.styles.paddingTop)    || 0,
+      rightPadding:  parseFloat(node.styles.paddingRight)  || 0,
+      bottomPadding: parseFloat(node.styles.paddingBottom) || 0,
+      leftPadding:   parseFloat(node.styles.paddingLeft)   || 0,
+      rowGap:    parseFloat(node.styles.rowGap)    || parseFloat(node.styles.gap) || 0,
+      columnGap: parseFloat(node.styles.columnGap) || parseFloat(node.styles.gap) || 0,
+    };
+  } catch (e) {
     return null;
   }
 }
 
-// Add inline text as a child of a container board.
+// ── Add inline text as child ──
 function addTextChild(node, board, absX, absY) {
   const txt = penpot.createText(node.text.trim());
   if (!txt) return;
@@ -416,7 +339,6 @@ function addTextChild(node, board, absX, absY) {
   const tc = parseCssColor(node.styles.color);
   if (tc) txt.fills = [tc];
   board.appendChild(txt);
-  try { if (txt.layoutChild) txt.layoutChild.horizontalSizing = 'fill'; } catch (e) {}
 }
 
 // ── Style helpers ──────────────────────────────────────────────
