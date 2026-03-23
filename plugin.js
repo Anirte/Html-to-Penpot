@@ -221,17 +221,7 @@ function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlB
 
       parentBoard.appendChild(board);
 
-      // Build children and immediately apply layout properties
-      const childShapes = [];
-      childNodes.forEach(child => {
-        const shape = buildNode(child, board, absX, absY, node.bounds.x, node.bounds.y, shapesWithMargin);
-        childShapes.push({ node: child, shape });
-      });
-
-      // Add inline text AFTER children so appendChild order is correct
-      if (node.text && node.text.trim()) addTextChild(node, board, absX, absY);
-
-      // Apply flex AFTER all children are added — Penpot needs children present
+      // Apply flex BEFORE children — so children get layoutChild immediately
       if (flexConfig) {
         try {
           const flex = board.addFlexLayout();
@@ -249,6 +239,16 @@ function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlB
           console.warn('[FLEX-FAIL]', node.name, e.message);
         }
       }
+
+      // Build children and immediately apply layout properties
+      const childShapes = [];
+      childNodes.forEach(child => {
+        const shape = buildNode(child, board, absX, absY, node.bounds.x, node.bounds.y, shapesWithMargin);
+        childShapes.push({ node: child, shape });
+      });
+
+      // Add inline text AFTER children so appendChild order is correct
+      if (node.text && node.text.trim()) addTextChild(node, board, absX, absY);
 
       // Apply margins AFTER flex — layoutChild is only available once parent has layout
       try {
