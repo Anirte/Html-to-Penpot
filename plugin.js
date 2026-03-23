@@ -228,6 +228,27 @@ function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlB
         childShapes.push({ node: child, shape });
       });
 
+      // Add inline text AFTER children so appendChild order is correct
+      if (node.text && node.text.trim()) addTextChild(node, board, absX, absY);
+
+      // Apply flex AFTER all children are added — Penpot needs children present
+      if (flexConfig) {
+        try {
+          const flex = board.addFlexLayout();
+          flex.dir            = flexConfig.dir;
+          flex.wrap           = flexConfig.wrap;
+          flex.alignItems     = flexConfig.alignItems;
+          flex.justifyContent = flexConfig.justifyContent;
+          flex.topPadding     = flexConfig.topPadding;
+          flex.rightPadding   = flexConfig.rightPadding;
+          flex.bottomPadding  = flexConfig.bottomPadding;
+          flex.leftPadding    = flexConfig.leftPadding;
+          flex.rowGap         = flexConfig.rowGap;
+          flex.columnGap      = flexConfig.columnGap;
+        } catch (e) {}
+      }
+
+      // Apply margins AFTER flex — layoutChild is only available once parent has layout
       try {
         childShapes.forEach(({ node: cn, shape }) => {
           if (!shape || !shape.layoutChild) return;
@@ -256,26 +277,6 @@ function buildNode(node, parentBoard, canvasBaseX, canvasBaseY, htmlBaseX, htmlB
         });
       } catch (e) {
         console.warn('[margin] error:', e.message);
-      }
-
-      // Add inline text AFTER children so appendChild order is correct
-      if (node.text && node.text.trim()) addTextChild(node, board, absX, absY);
-
-      // Apply flex AFTER all children are added — Penpot needs children present
-      if (flexConfig) {
-        try {
-          const flex = board.addFlexLayout();
-          flex.dir            = flexConfig.dir;
-          flex.wrap           = flexConfig.wrap;
-          flex.alignItems     = flexConfig.alignItems;
-          flex.justifyContent = flexConfig.justifyContent;
-          flex.topPadding     = flexConfig.topPadding;
-          flex.rightPadding   = flexConfig.rightPadding;
-          flex.bottomPadding  = flexConfig.bottomPadding;
-          flex.leftPadding    = flexConfig.leftPadding;
-          flex.rowGap         = flexConfig.rowGap;
-          flex.columnGap      = flexConfig.columnGap;
-        } catch (e) {}
       }
     }
 
