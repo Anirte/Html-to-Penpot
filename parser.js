@@ -1,6 +1,7 @@
 // ══════════════════════════════════════════ FETCH INTERCEPTOR
 // Intercepts Penpot API calls to capture session-id and revn for margin fix
 let _penpotSession = null;
+let _marginFixData = null; // stores data needed for margin fix command
 const _origFetch = window.fetch;
 window.fetch = function(...args) {
   const url = typeof args[0] === 'string' ? args[0] : args[0]?.url;
@@ -517,10 +518,16 @@ window.addEventListener('message', event => {
     log(`✓ All done!`);
     toast(`✓ All done!`);
 
-    // Auto-apply margin-type fix for shapes with asymmetric margins
+    // Save data and show copy button for manual margin fix
     if (event.data.asymmetricIds && event.data.asymmetricIds.length > 0) {
-      log(`⚙️ Applying margin fix for ${event.data.asymmetricIds.length} elements…`);
-      applyMarginFix(event.data.asymmetricIds, event.data.pageId, event.data.fileId);
+      _marginFixData = {
+        shapeIds: event.data.asymmetricIds,
+        pageId:   event.data.pageId,
+        fileId:   event.data.fileId,
+      };
+      document.getElementById('marginFixBtn').style.display = 'block';
+      log(`⚠️ ${event.data.asymmetricIds.length} elements need margin fix`);
+      log(`→ Click "Copy margin fix command" then paste in F12 Console`);
     }
   }
 
@@ -581,13 +588,79 @@ async function applyMarginFix(shapeIds, pageId, fileId) {
 }
 
 function copyMarginCmd() {
-  const cmd = `setTimeout(() => { document.querySelector('button:has(use[href="#icon-margin"])')?.click(); console.log('✓ Margin fix applied!'); }, 3000);`;
+  if (!_marginFixData) {
+    toast('No margin data — generate first', '#e86060');
+    return;
+  }
+
+  const { shapeIds, pageId, fileId } = _marginFixData;
+  const features = '["fdata/path-data","plugins/runtime","design-tokens/v1","variants/v1","layout/grid","styles/v2","fdata/objects-map","components/v2","fdata/shape-data-type"]';
+
+  const cmd = `
+(async () => {
+  // Get fresh session from a recent request
+  let revn = 0;
+  const orig = window.fetch;
+  const fileId = "${fileId}";
+  const pageId = "${pageId}";
+  const shapeIds = ${JSON.stringify(shapeIds)};
+  const features = {"~#set": ${features}};
+
+  // Intercept one request to get session-id and revn
+  let session = null;
+  window.fetch = function(...a) {
+    const url = typeof a[0]==='string'?a[0]:a[0]?.url;
+    if (url && url.includes('update-file') && a[1]?.body) {
+      try { const b=JSON.parse(a[1].body); session={sid:b['~:session-id'],revn:b['~:revn']}; } catch(e){}
+    }
+    return orig.apply(this,a);
+  };
+
+  console.log('Move any element in Penpot to capture session, then this will auto-run...');
+  // Wait for session (up to 30s)
+  for (let i=0; i<300 && !session; i++) await new Promise(r=>setTimeout(r,100));
+  window.fetch = orig;
+  if (!session) { console.error('No session captured!'); return; }
+
+  let ok = 0;
+  for (const shapeId of shapeIds) {
+    const res = await orig("/api/rpc/command/update-file", {
+      method:"POST", credentials:"include",
+      headers:{"Content-Type":"application/transit+json"},
+      body: JSON.stringify({
+        "~:features": features,
+        "~:session-id": session.sid,
+        "~:revn": session.revn + ok,
+        "~:vern": 0,
+        "~:id": \`~u\${fileId}\`,
+        "~:changes": [{
+          "~:type":"~:mod-obj",
+          "~:id":\`~u\${shapeId}\`,
+          "~:page-id":\`~u\${pageId}\`,
+          "~:operations":[{
+            "~:type":"~:set",
+            "~:attr":"~:layout-item-margin-type",
+            "~:val":"~:multiple",
+            "~:ignore-geometry":false,
+            "~:ignore-touched":false
+          }]
+        }]
+      })
+    });
+    const d = await res.json();
+    session.revn = d[1] || session.revn + 1;
+    ok++;
+  }
+  console.log('✓ Margin fix applied to ' + ok + '/' + shapeIds.length + ' elements!');
+})();
+`.trim();
+
   navigator.clipboard.writeText(cmd).then(() => {
-    toast('Copied! Open F12 → Ctrl+V → Enter');
-    log('Command copied. Open F12 → Console → Ctrl+V → Enter');
+    toast('Copied! Paste in F12 Console, then move any element');
+    log('Command copied → paste in F12 Console → move any element in Penpot UI');
   }).catch(() => {
-    toast('Copy failed — see log for command', '#e86060');
-    log('Command: ' + cmd);
+    toast('Copy failed — see log', '#e86060');
+    log('Copy failed');
   });
 }
 
