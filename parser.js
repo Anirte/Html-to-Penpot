@@ -601,6 +601,7 @@ function copyMarginCmd() {
   // Get fresh session from a recent request
   let revn = 0;
   const orig = window.fetch;
+  const apiBase = window.location.hostname === 'localhost' ? 'http://localhost:9001' : '';
   const fileId = "${fileId}";
   const pageId = "${pageId}";
   const shapeIds = ${JSON.stringify(shapeIds)};
@@ -608,12 +609,13 @@ function copyMarginCmd() {
 
   // Intercept one request to get session-id and revn
   let session = null;
+  const _orig = window.fetch.bind(window);
   window.fetch = function(...a) {
     const url = typeof a[0]==='string'?a[0]:a[0]?.url;
     if (url && url.includes('update-file') && a[1]?.body) {
       try { const b=JSON.parse(a[1].body); session={sid:b['~:session-id'],revn:b['~:revn']}; } catch(e){}
     }
-    return orig.apply(this,a);
+    return _orig.apply(this,a);
   };
 
   console.log('Move any element in Penpot to capture session, then this will auto-run...');
@@ -624,7 +626,7 @@ function copyMarginCmd() {
 
   let ok = 0;
   for (const shapeId of shapeIds) {
-    const res = await orig("/api/rpc/command/update-file", {
+    const res = await _orig(apiBase + "/api/rpc/command/update-file", {
       method:"POST", credentials:"include",
       headers:{"Content-Type":"application/transit+json"},
       body: JSON.stringify({
