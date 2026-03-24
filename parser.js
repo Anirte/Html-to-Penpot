@@ -1,3 +1,24 @@
+// ══════════════════════════════════════════ FETCH INTERCEPTOR
+// Intercepts Penpot API calls to capture session-id and revn for margin fix
+let _penpotSession = null;
+const _origFetch = window.fetch;
+window.fetch = function(...args) {
+  const url = typeof args[0] === 'string' ? args[0] : args[0]?.url;
+  if (url && url.includes('update-file') && args[1]?.body) {
+    try {
+      const body = JSON.parse(args[1].body);
+      if (body['~:session-id'] && body['~:revn'] !== undefined) {
+        _penpotSession = {
+          sessionId: body['~:session-id'],
+          revn:      body['~:revn'],
+          fileId:    body['~:id'],
+        };
+      }
+    } catch(e) {}
+  }
+  return _origFetch.apply(this, args);
+};
+
 // ══════════════════════════════════════════ TABS
 function switchTab(name, btn) {
   ['html','css','js','opts'].forEach(t => {
@@ -496,12 +517,10 @@ window.addEventListener('message', event => {
     log(`✓ All done!`);
     toast(`✓ All done!`);
 
-    // Если нужно применить Margin Fix - показываем кнопку
-    if (event.data.needsMarginFix) {
-      document.getElementById('marginFixBtn').style.display = 'block';
-      log(`⚠️ Обнаружены асимметричные отступы!`);
-      log(`   Из-за бага в Penpot их нужно раскрыть вручную.`);
-      log(`   Выдели элементы, нажми "Copy margin fix command" ниже и вставь команду в консоль F12.`);
+    // Auto-apply margin-type fix for shapes with asymmetric margins
+    if (event.data.asymmetricIds && event.data.asymmetricIds.length > 0) {
+      log(`⚙️ Applying margin fix for ${event.data.asymmetricIds.length} elements…`);
+      applyMarginFix(event.data.asymmetricIds, event.data.pageId, event.data.fileId);
     }
   }
 
@@ -512,6 +531,54 @@ window.addEventListener('message', event => {
     toast('Penpot error', '#e86060');
   }
 });
+
+async function applyMarginFix(shapeIds, pageId, fileId) {
+  if (!_penpotSession) {
+    log('⚠️ No Penpot session captured — move any element in Penpot UI first, then retry');
+    document.getElementById('marginFixBtn').style.display = 'block';
+    return;
+  }
+
+  const features = {"~#set": ["fdata/path-data","plugins/runtime","design-tokens/v1","variants/v1","layout/grid","styles/v2","fdata/objects-map","components/v2","fdata/shape-data-type"]};
+  let revn = _penpotSession.revn;
+  let ok = 0;
+
+  for (const shapeId of shapeIds) {
+    try {
+      const res = await _origFetch("/api/rpc/command/update-file", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/transit+json" },
+        body: JSON.stringify({
+          "~:features": features,
+          "~:session-id": _penpotSession.sessionId,
+          "~:revn": revn,
+          "~:vern": 0,
+          "~:id": `~u${fileId}`,
+          "~:changes": [{
+            "~:type": "~:mod-obj",
+            "~:id": `~u${shapeId}`,
+            "~:page-id": `~u${pageId}`,
+            "~:operations": [{
+              "~:type": "~:set",
+              "~:attr": "~:layout-item-margin-type",
+              "~:val": "~:multiple",
+              "~:ignore-geometry": false,
+              "~:ignore-touched": false
+            }]
+          }]
+        })
+      });
+      const data = await res.json();
+      // Update revn from server response for next request
+      revn = (data && data[1]) ? data[1] : revn + 1;
+      ok++;
+    } catch(e) {
+      log('⚠️ Margin fix failed for ' + shapeId + ': ' + e.message);
+    }
+  }
+  log(`✓ Margin fix applied to ${ok}/${shapeIds.length} elements`);
+}
 
 function copyMarginCmd() {
   const cmd = `setTimeout(() => { document.querySelector('button:has(use[href="#icon-margin"])')?.click(); console.log('✓ Margin fix applied!'); }, 3000);`;

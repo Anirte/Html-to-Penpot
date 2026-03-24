@@ -124,12 +124,18 @@ penpot.ui.onMessage(async (message) => {
         total: layoutQueue.length
       });
     } else {
+      // Collect IDs of shapes that have asymmetric margins
+      const asymmetricIds = marginQueue
+        .filter(m => m.mt !== m.mb || m.ml !== m.mr)
+        .map(m => m.shape.id);
+
       layoutQueue = [];
       marginQueue = [];
       penpot.ui.sendMessage({
         type: 'DONE',
-        needsMarginFix: true, // Показываем кнопку фикса в UI
-        marginCount: 0
+        asymmetricIds,
+        pageId: penpot.currentPage.id,
+        fileId: penpot.currentFile.id,
       });
     }
   }
