@@ -6,6 +6,7 @@
   "engine": "0.1",
   "ui": "https://anirte.github.io/Html-to-Penpot/index.html",
   "code": "https://anirte.github.io/Html-to-Penpot/plugin.js",
+  "host": "https://anirte.github.io/Html-to-Penpot/",
   "permissions": [
     "content:read",
     "content:write"
