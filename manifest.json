@@ -4,8 +4,8 @@
   "version": "1.0.0",
   "manifest_version": 1,
   "engine": "0.1",
-  "ui": "index.html",
-  "code": "plugin.js",
+  "ui": "https://anirte.github.io/Html-to-Penpot/index.html",
+  "code": "https://anirte.github.io/Html-to-Penpot/plugin.js",
   "permissions": [
     "content:read",
     "content:write"
